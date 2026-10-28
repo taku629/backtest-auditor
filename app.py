@@ -71,7 +71,7 @@ with st.sidebar:
     has_key = bool(os.environ.get("NEBIUS_API_KEY"))
     default_mock = use_mock()
     mode = st.radio("LLM backend", ["Mock (offline, reproducible)", "Nebius Token Factory (live)"],
-                    index=0 if default_mock or not has_key else 1,
+                    index=1 if (has_key and os.environ.get("DEFAULT_LIVE") == "1") else 0,
                     help="Live mode needs NEBIUS_API_KEY in the environment.")
     live = mode.startswith("Nebius")
     if live and not has_key:
