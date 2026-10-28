@@ -77,6 +77,13 @@ with st.sidebar:
     if live and not has_key:
         st.error("NEBIUS_API_KEY is not set - falling back to Mock.")
         live = False
+    live_cap = int(os.environ.get("MAX_LIVE_RUNS_PER_SESSION", "5"))
+    live_used = st.session_state.get("live_runs", 0)
+    if live:
+        st.caption(f"Live runs this session: {live_used}/{live_cap} (public demo budget)")
+        if live_used >= live_cap:
+            st.warning("Live budget for this session is used up - switch to Mock or run locally with your own key.")
+            live = False
     st.subheader("Model routing")
     for role in ("coder", "auditor", "summarizer"):
         cfg.routes[role].model = st.text_input(f"{role.capitalize()} model", cfg.routes[role].model,
@@ -281,6 +288,8 @@ def RunTrace_json(trace: dict) -> str:  # noqa: N802
 
 # ----------------------------------------------------------------------------- run
 if run and hyp.strip():
+    if live:
+        st.session_state["live_runs"] = st.session_state.get("live_runs", 0) + 1
     llm = make_llm(mock=not live, config=cfg, mock_latency_s=pacing)
     st.subheader("Live iteration timeline")
     status = st.status("Coder is drafting the strategy…", expanded=True)

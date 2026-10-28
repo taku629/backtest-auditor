@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NEBIUS_API_KEY
         sync: false          # set in the Render dashboard; without it the app runs in Mock mode
+      - key: MAX_LIVE_RUNS_PER_SESSION
+        value: "5"
       - key: CODER_MODEL
         value: nvidia/nemotron-3-super-120b-a12b
       - key: AUDITOR_MODEL

@@ -90,7 +90,20 @@ with routing set in `agents/config.py` and overridable by environment variable:
 | Summarizer | `nvidia/Nemotron-3_5-Lightning` | Fast and cheap, for the final executive summary |
 
 The UI shows which model handled each step, with token usage, latency and estimated cost.
-`scripts/check_models.py` checks the IDs against the live catalogue.
+`scripts/check_models.py` checks the IDs against the live catalogue (all three verified on 2026-10-28).
+Coder and Auditor run with Nemotron reasoning on (the trace arrives in `reasoning_content` and is kept out
+of the code); the Summarizer runs with `enable_thinking: false` for speed.
+
+## Live results (Nemotron on Token Factory, 2026-10-28)
+
+| Run | First draft | Audited final | Iterations | Cost |
+|---|---|---|---|---|
+| Audit my own code: leaky momentum pasted (`examples/leaky_momentum.py`) | Sharpe 6.63, CAGR 545%; fails future-perturbation, static scan, survivorship, plausibility | Sharpe −0.67, clean | 2 (Ultra diagnosed, Super fixed) | < $0.01 |
+| From hypothesis only (top-decile momentum) | Super's draft crashed in the sandbox (shape mismatch) | Sharpe 0.94, CAGR 24%, clean | 2 | ≈ $0.003 |
+
+Full traces, including every model call with tokens and latency: `examples/live_nemotron_*.json`.
+Lesson: on this prompt Nemotron did not leak future data on its own, so the product also audits code you
+paste from a notebook, where look-ahead bugs usually live.
 
 ## Results on the bundled demo (Mock mode, seed 51)
 
@@ -105,13 +118,14 @@ The UI shows which model handled each step, with token usage, latency and estima
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 45 tests, fully offline
+pytest                                   # 46 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
+python cli.py --live --code examples/leaky_momentum.py   # audit your own strategy file
 ```
 
-Environment variables: `NEBIUS_API_KEY`, `USE_MOCK`, `NEBIUS_BASE_URL`, `CODER_MODEL`, `AUDITOR_MODEL`, `SUMMARIZER_MODEL`.
+Environment variables: `NEBIUS_API_KEY`, `USE_MOCK`, `NEBIUS_BASE_URL`, `CODER_MODEL`, `AUDITOR_MODEL`, `SUMMARIZER_MODEL`, `MAX_LIVE_RUNS_PER_SESSION` (public demo budget, default 5).
 
 ### Deploy on Render
 
