@@ -118,6 +118,16 @@ with c_side:
         st.session_state["hyp"] = PRESETS[preset]
 with c_in:
     hyp = st.text_area("Trading hypothesis (natural language)", key="hyp", height=80)
+origin = st.radio("First draft", ["Nemotron writes it from the hypothesis", "Audit my own strategy code"],
+                  horizontal=True, help="Paste a generate_signals(data) function from your notebook. "
+                                        "Iteration 1 runs it unchanged; Nemotron only repairs it.")
+user_code = None
+if origin.startswith("Audit"):
+    from agents.mock_strategies import LEAKY
+    if "user_code" not in st.session_state:
+        st.session_state["user_code"] = LEAKY["momentum"]
+    user_code = st.text_area("Strategy code: def generate_signals(data) -> weights DataFrame",
+                             key="user_code", height=260)
 run = st.button("Run audit loop", type="primary")
 if not live:
     st.caption("Mock mode replays canned Coder drafts (picked by keyword) and a rule-based Auditor; "
@@ -137,9 +147,10 @@ def render_iteration(it: dict, models: dict, expanded: bool):
     else:
         badge = f'<span class="pill pill-fail">{len(blocking)} blocking failure(s)</span>'
     label = "Draft" if it["index"] == 0 else "Fix"
+    author = "you (pasted)" if it.get("user_code") else short_model(models["coder"])
     with st.container(border=True):
         st.markdown(f"**Iteration {it['index'] + 1} · {label}** &nbsp; {badge} &nbsp; "
-                    f'<span class="subtle">code by</span> <span class="model-tag">{short_model(models["coder"])}</span>',
+                    f'<span class="subtle">code by</span> <span class="model-tag">{author}</span>',
                     unsafe_allow_html=True)
         if tests:
             st.markdown(" ".join(pill(t) for t in tests), unsafe_allow_html=True)
@@ -286,7 +297,8 @@ if run and hyp.strip():
         if t == "coder_start":
             status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({short_model(e['model'])}) is writing code…")
         elif t == "coder_done":
-            state["iterations"].append({"index": e["iteration"], "code": e["code"], "status": "pending", "tests": []})
+            state["iterations"].append({"index": e["iteration"], "code": e["code"], "status": "pending", "tests": [],
+                                        "user_code": bool(e.get("user_code"))})
             status.update(label=f"Iteration {e['iteration'] + 1}: running sandbox + deterministic audit…")
         elif t == "tests_done":
             it = state["iterations"][-1]
@@ -303,7 +315,7 @@ if run and hyp.strip():
 
     try:
         trace: RunTrace = run_audit_loop(hyp.strip(), data, llm, max_iters=max_iters, cost_bps=float(cost_bps),
-                                         on_event=on_event)
+                                         on_event=on_event, initial_code=(user_code or None))
         status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
                       state="complete" if trace.final_status == "clean" else "error", expanded=False)
         st.session_state["trace"] = trace.to_dict()

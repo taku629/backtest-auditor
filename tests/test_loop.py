@@ -69,7 +69,7 @@ def test_nebius_client_plumbing(monkeypatch, panel):
     assert str(llm.client.base_url).startswith("https://api.tokenfactory.nebius.com/v1")
     seen = []
 
-    def fake_create(model, messages, temperature, max_tokens):
+    def fake_create(model, messages, temperature, max_tokens, extra_body=None):
         seen.append(model)
         text = "<think>plan</think>```python\n" + MOMENTUM_V3 + "```" if "Iteration" in messages[-1]["content"] \
             else "- summary"

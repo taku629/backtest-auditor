@@ -34,6 +34,7 @@ class Iteration:
     auditor_feedback: str = ""
     llm_calls: list[dict] = field(default_factory=list)
     audit_seconds: float = 0.0
+    user_code: bool = False
 
     @property
     def clean(self) -> bool:
@@ -84,12 +85,17 @@ def _record(trace: RunTrace, it: Iteration | None, resp: LLMResponse, step: str)
 
 def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost_bps: float = 10.0,
                    sandbox_timeout: float = 90.0, on_event: OnEvent | None = None,
-                   summarize: bool = True) -> RunTrace:
+                   summarize: bool = True, initial_code: str | None = None) -> RunTrace:
+    """Run the Coder -> deterministic audit -> Auditor -> Coder loop.
+
+    ``initial_code``: audit an existing strategy (e.g. pasted from a notebook) instead of asking the
+    Coder for a first draft. Iteration 1 then runs the user's code unchanged.
+    """
     emit = on_event or (lambda e: None)
     cfg = llm.config
     trace = RunTrace(hypothesis, bool(getattr(llm, "is_mock", False)),
                      {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")},
-                     settings={"max_iters": max_iters, "cost_bps": cost_bps,
+                     settings={"max_iters": max_iters, "cost_bps": cost_bps, "user_code": bool(initial_code),
                                "n_dates": int(len(data["close"])), "n_tickers": int(data["close"].shape[1])})
     prev_code, feedback, trial_sharpes = "", "", []
 
@@ -100,12 +106,18 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         msgs = [{"role": "system", "content": P.CODER_SYSTEM},
                 {"role": "user", "content": P.CODER_USER.format(iteration=i + 1, hypothesis=hypothesis,
                                                                 feedback_block=fb)}]
-        resp = llm.chat("coder", msgs, context={"hypothesis": hypothesis, "iteration": i, "feedback": feedback})
-        code = extract_code(resp.text)
-        it = Iteration(i, code)
-        trace.iterations.append(it)
-        _record(trace, it, resp, "write_code" if i == 0 else "fix_code")
-        emit({"type": "coder_done", "iteration": i, "code": code, "call": it.llm_calls[-1]})
+        if i == 0 and initial_code:
+            code = initial_code if initial_code.endswith("\n") else initial_code + "\n"
+            it = Iteration(i, code, user_code=True)
+            trace.iterations.append(it)
+            emit({"type": "coder_done", "iteration": i, "code": code, "call": None, "user_code": True})
+        else:
+            resp = llm.chat("coder", msgs, context={"hypothesis": hypothesis, "iteration": i, "feedback": feedback})
+            code = extract_code(resp.text)
+            it = Iteration(i, code)
+            trace.iterations.append(it)
+            _record(trace, it, resp, "write_code" if i == 0 else "fix_code")
+            emit({"type": "coder_done", "iteration": i, "code": code, "call": it.llm_calls[-1]})
 
         # ---- Sandbox + deterministic audit
         t0 = time.time()
@@ -162,6 +174,8 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
                          f"failing tests: {', '.join(fails) or 'none'}" + (f"; error: {it.error[:200]}" if it.error else ""))
         msgs = [{"role": "system", "content": P.SUMMARIZER_SYSTEM},
                 {"role": "user", "content": P.SUMMARIZER_USER.format(hypothesis=hypothesis, status=trace.final_status,
+                                                                     cost_bps=cost_bps,
+                                                                     origin="pasted by the user" if initial_code else "written by the Coder model",
                                                                      iterations="\n".join(lines))}]
         sresp = llm.chat("summarizer", msgs, context={"hypothesis": hypothesis,
                                                       "iterations": [asdict(x) | {"clean": x.clean}

@@ -61,11 +61,17 @@ Deterministic test results (JSON):
 ```"""
 
 SUMMARIZER_SYSTEM = """You write the executive summary of a backtest audit for a portfolio manager.
-Plain English, 4-6 bullet points, no hype. Say what was wrong in early drafts, how much of the
-reported performance was fake, what the final, clean version earns, and the remaining caveats
-(e.g. Deflated Sharpe, synthetic data)."""
+Plain English, 4-6 bullet points, no hype. Use ONLY the facts and numbers given; never invent a
+number, percentage or cause. Cover: what was wrong in the first draft (failing test names or the
+error), how the headline metrics changed from first to final draft (quote both), what the final
+version earns, and caveats. Transaction costs ARE modeled at the stated bps; the data panel is
+seeded synthetic data with IPOs and delistings. cagr, max_drawdown, ann_vol and hit_rate are fractions (0.24 = 24%); turnover_annual is a multiple
+of the portfolio per year (46.2 = 46x). Do not restate these formatting notes; do not speculate
+about causes beyond what the failing test names say."""
 
 SUMMARIZER_USER = """Hypothesis: {hypothesis}
+First draft: {origin}
+Transaction costs: {cost_bps} bps per unit turnover
 Final status: {status}
 Iterations:
 {iterations}"""

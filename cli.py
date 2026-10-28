@@ -17,12 +17,14 @@ def main(argv=None) -> int:
     ap.add_argument("--max-iters", type=int, default=4)
     ap.add_argument("--cost-bps", type=float, default=10.0)
     ap.add_argument("--out", default="")
+    ap.add_argument("--code", default="", help="path to a .py file with generate_signals(data) to audit first")
     a = ap.parse_args(argv)
 
     def show(e):
         t = e["type"]
         if t == "coder_done":
-            print(f"[{e['iteration'] + 1}] coder  ({e['call']['model']}) -> {len(e['code'].splitlines())} lines")
+            who = "user code" if e.get("user_code") else e["call"]["model"]
+            print(f"[{e['iteration'] + 1}] coder  ({who}) -> {len(e['code'].splitlines())} lines")
         elif t == "tests_done":
             fails = [f"{x['name']}({x['severity']})" for x in e["tests"] if not x["passed"]]
             print(f"[{e['iteration'] + 1}] audit  sharpe={e['metrics']['sharpe']:.2f} "
@@ -33,7 +35,8 @@ def main(argv=None) -> int:
             print(f"[{e['iteration'] + 1}] sandbox error: {e['error'][:200]}")
 
     trace = run_audit_loop(a.hypothesis, generate_panel(), make_llm(mock=not a.live), max_iters=a.max_iters,
-                           cost_bps=a.cost_bps, on_event=show)
+                           cost_bps=a.cost_bps, on_event=show,
+                           initial_code=open(a.code).read() if a.code else None)
     print(f"\nFinal: {trace.final_status}\n{trace.summary}")
     if a.out:
         with open(a.out, "w") as f:

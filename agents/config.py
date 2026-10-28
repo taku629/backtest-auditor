@@ -26,6 +26,7 @@ class ModelRoute:
     purpose: str
     temperature: float = 0.2
     max_tokens: int = 4096
+    thinking: bool = True
 
 
 @dataclass
@@ -47,11 +48,11 @@ def load_config() -> AgentConfig:
     env = os.environ.get
     routes = {
         "coder": ModelRoute("coder", env("CODER_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
-                            "Writes and repairs the strategy function", 0.2, 4096),
+                            "Writes and repairs the strategy function", 0.2, 8192),
         "auditor": ModelRoute("auditor", env("AUDITOR_MODEL", "nvidia/Nemotron-3-Ultra-550b-a55b"),
-                              "Diagnoses failing deterministic tests, writes fix instructions", 0.1, 2048),
+                              "Diagnoses failing deterministic tests, writes fix instructions", 0.1, 4096),
         "summarizer": ModelRoute("summarizer", env("SUMMARIZER_MODEL", "nvidia/Nemotron-3_5-Lightning"),
-                                 "Writes the final audit summary", 0.2, 800),
+                                 "Writes the final audit summary", 0.2, 800, thinking=False),
     }
     return AgentConfig(base_url=env("NEBIUS_BASE_URL", DEFAULT_BASE_URL), routes=routes)
 

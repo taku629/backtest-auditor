@@ -54,9 +54,14 @@ class NebiusLLM:
     def chat(self, role: str, messages: list[dict], context: dict | None = None) -> LLMResponse:
         route = self.config.route(role)
         t0 = time.time()
+        extra = None if route.thinking else {"chat_template_kwargs": {"enable_thinking": False}}
         resp = self.client.chat.completions.create(model=route.model, messages=messages,
-                                                   temperature=route.temperature, max_tokens=route.max_tokens)
-        text = resp.choices[0].message.content or ""
+                                                   temperature=route.temperature, max_tokens=route.max_tokens,
+                                                   extra_body=extra)
+        msg = resp.choices[0].message
+        text = msg.content or ""
+        if not text.strip():  # reasoning consumed the budget: fall back to the reasoning trace
+            text = getattr(msg, "reasoning_content", None) or ""
         text = THINK_RE.sub("", text).strip()
         usage = getattr(resp, "usage", None)
         return LLMResponse(text, role, route.model,
