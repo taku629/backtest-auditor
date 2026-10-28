@@ -1,0 +1,6 @@
+numpy>=1.26
+pandas>=2.1
+openai>=1.40
+streamlit>=1.40
+plotly>=5.20
+pytest>=8.0

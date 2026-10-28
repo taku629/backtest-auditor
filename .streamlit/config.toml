@@ -1,0 +1,10 @@
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#76b900"
+font = "sans serif"

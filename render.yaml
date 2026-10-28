@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: backtest-auditor
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
+    autoDeploy: false
+    envVars:
+      - key: NEBIUS_API_KEY
+        sync: false          # set in the Render dashboard; without it the app runs in Mock mode
+      - key: CODER_MODEL
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: AUDITOR_MODEL
+        value: nvidia/Nemotron-3-Ultra-550b-a55b
+      - key: SUMMARIZER_MODEL
+        value: nvidia/Nemotron-3_5-Lightning
