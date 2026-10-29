@@ -98,8 +98,13 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
                      settings={"max_iters": max_iters, "cost_bps": cost_bps, "user_code": bool(initial_code),
                                "n_dates": int(len(data["close"])), "n_tickers": int(data["close"].shape[1])})
     prev_code, feedback, trial_sharpes = "", "", []
+    last_audit_fb = ""            # the Auditor's latest leak diagnosis, kept across sandbox crashes
+    crash_retries_left = 1        # one free retry when a rewrite crashes (does not consume an audit iteration)
+    audited = 0                   # iterations that actually ran the audit
 
-    for i in range(max_iters):
+    for i in range(max_iters + 1):
+        if audited >= max_iters:
+            break
         # ---- Coder
         emit({"type": "coder_start", "iteration": i, "model": cfg.route("coder").model})
         fb = P.CODER_FEEDBACK_BLOCK.format(code=prev_code, feedback=feedback) if prev_code else ""
@@ -131,10 +136,18 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
             it.status, it.error = "error", str(e)
             it.audit_seconds = time.time() - t0
             emit({"type": "error", "iteration": i, "error": it.error})
-            feedback = (f"The code could not run in the sandbox:\n{it.error}\n"
-                        "Return a corrected generate_signals(data) using only numpy/pandas/math.")
+            feedback = (f"The code could not run in the sandbox:\n{it.error[-1500:]}\n"
+                        "Return a corrected generate_signals(data) using only numpy/pandas/math. Keep it vectorised "
+                        "(no per-date Python loops).")
+            if last_audit_fb:
+                feedback += ("\n\nThe fix must still address the original audit findings:\n" + last_audit_fb)
             prev_code = code
+            if crash_retries_left > 0:
+                crash_retries_left -= 1
+            else:
+                audited += 1
             continue
+        audited += 1
         it.audit_seconds = time.time() - t0
         rd = rep.to_dict()
         it.tests, it.metrics, it.metrics_lag2 = rd["tests"], rd["metrics"], rd["metrics_lag2"]
@@ -147,7 +160,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
             break
 
         # ---- Auditor (explains the numbers, writes fix instructions)
-        if i == max_iters - 1:
+        if audited >= max_iters:
             break
         emit({"type": "auditor_start", "iteration": i, "model": cfg.route("auditor").model})
         msgs = [{"role": "system", "content": P.AUDITOR_SYSTEM},
@@ -160,6 +173,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         _record(trace, it, aresp, "diagnose")
         emit({"type": "auditor_done", "iteration": i, "feedback": aresp.text, "call": it.llm_calls[-1]})
         prev_code, feedback = code, aresp.text
+        last_audit_fb = aresp.text
 
     last = trace.iterations[-1] if trace.iterations else None
     trace.final_status = "clean" if last and last.clean else ("error" if last and last.status == "error" else "not_clean")
