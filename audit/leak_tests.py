@@ -413,6 +413,31 @@ class AuditReport:
                 "diagnostics": _jsonable(self.diagnostics)}
 
 
+def _relocalize_adapted(code: str, evidence: dict) -> None:
+    """Adapted code (audit/adapters.py) ends in a generated wrapper. When the localizer can only blame the wrapper
+    (the leak flows through a library stub, e.g. backtrader's line[1]), point at the static look-ahead finding in
+    the user's own lines instead, or report that the line could not be pinned."""
+    from audit.adapters import WRAPPER_MARK
+    lz = evidence.get("localized")
+    if WRAPPER_MARK not in code or not isinstance(lz, dict) or not lz.get("found") or not lz.get("entry"):
+        return
+    lines = code.splitlines()
+    mark = next(i for i, ln in enumerate(lines, 1) if ln.strip() == WRAPPER_MARK)
+    if lz["entry"].get("line", 0) < mark:
+        return
+    from audit.ast_scan import LOOKAHEAD_RULE_IDS
+    static = [f for f in scan_code(code) if f.rule in LOOKAHEAD_RULE_IDS and f.line < mark]
+    if static:
+        f = static[0]
+        lz["entry"] = {**lz["entry"], "line": f.line, "source_line": f.snippet, "var": "",
+                       "kind": f"static {f.rule} (the dynamic trace stops at the adapter call)",
+                       "func": "", "wrapper_line": lz["entry"].get("line")}
+        lz["method"] = "static (adapted code)"
+    else:
+        lz.update({"found": False, "entry": None,
+                   "note": "the leak flows through the adapter stub; no single user line could be pinned"})
+
+
 def in_process_executor(fn: Callable[[dict], pd.DataFrame]) -> Executor:
     return lambda datasets: [fn(_copy(d)) for d in datasets]
 
@@ -468,12 +493,15 @@ def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_tria
                                                        n_cuts=n_cuts)
         except Exception as e:  # noqa: BLE001 - localization is best-effort evidence, never breaks the audit
             fp_t.evidence["localized"] = {"found": False, "error": f"{type(e).__name__}: {e}"[:500]}
+        _relocalize_adapted(code, fp_t.evidence)
     if pbo:  # after the leak tests: PBO of a leaky strategy measures the leak, not the tuning, so skip it then
         blocking_now = [t.name for t in tests if t.blocking]
+        skip = (("blocking test(s) failed (" + ", ".join(blocking_now) + "); PBO is computed once the strategy is "
+                 "leak-free") if blocking_now else "")
+        if not skip and code and "bta_adapter.run_backtrader(" in code:
+            skip = "not run for adapted backtrader strategies (every grid variant is a full Python bar-by-bar replay)"
         tests.append(evaluate_pbo(code, data, cost_bps=cost_bps, execution=execution, timeout=pbo_timeout,
-                                  runner=pbo_runner, param_grid=param_grid,
-                                  skip_reason=("blocking test(s) failed (" + ", ".join(blocking_now) + "); PBO is "
-                                               "computed once the strategy is leak-free") if blocking_now else ""))
+                                  runner=pbo_runner, param_grid=param_grid, skip_reason=skip))
     if bt1.metrics["avg_gross"] == 0:
         tests.append(TestResult("non_trivial", False, "high", "Strategy never takes a position.",
                                 {}, "Return non-zero target weights."))

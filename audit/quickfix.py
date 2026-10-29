@@ -29,6 +29,7 @@ reversed_time_window        drop ``iloc[::-1]`` / ``sort_index(ascending=False)`
 pooled_quantile             ``pd.qcut(stacked, ..)`` -> per date ``stacked.groupby(level=0).transform(qcut)``;
                             ``X.stack().groupby(level=1).quantile(q)`` -> ``X.expanding().quantile(q)``
 survivor_universe           ``X.dropna(axis=1)`` -> ``X``
+future_bar_index            backtrader ``self.data.close[1]`` (next bar) -> ``[0]``; ``.get(ago=k)`` -> ``ago=0``
 lag_statement (fallback)    ``v = <expr>`` -> ``v = (<expr>).shift(1)`` on the localized line
 ==========================  ===================================================================================
 
@@ -478,6 +479,22 @@ def _gen_survivor(tree, stmt, ctx):
     return [("survivor_universe", "drop dropna(axis=1): keep every ticker, point-in-time", ed)] if ed else []
 
 
+def _gen_future_bar(tree, stmt, ctx):
+    """backtrader (audit/adapters.py): a positive line index reads the next bar -> read the current bar."""
+    from audit.ast_scan import _pos_int, _rooted_at_self
+    edits = []
+    for n in _nodes_in(stmt):
+        if isinstance(n, ast.Subscript) and _rooted_at_self(n.value) and _pos_int(n.slice) > 0 and not (
+                isinstance(n.value, ast.Attribute) and n.value.attr in ("datas", "dnames")):
+            edits.append((n.slice, "0"))
+        elif _call(n) and n.func.attr == "get" and _rooted_at_self(n.func):
+            a = _kw(n, "ago") or (n.args[0] if n.args else None)
+            if a is not None and _pos_int(a) > 0:
+                edits.append((a, "0"))
+    return [("future_bar_index", "backtrader: read the current bar [0] instead of a future bar", edits)] if edits \
+        else []
+
+
 def _gen_lag(tree, stmt, ctx):
     if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
         return [("lag_statement", "lag the localized value by one bar (.shift(1))",
@@ -486,7 +503,7 @@ def _gen_lag(tree, stmt, ctx):
 
 
 GENERATORS = [_gen_negative_period, _gen_centered, _gen_backfill, _gen_reversed, _gen_period_transform,
-              _gen_resample, _gen_pooled, _gen_rank, _gen_full_sample, _gen_survivor]
+              _gen_resample, _gen_pooled, _gen_rank, _gen_full_sample, _gen_survivor, _gen_future_bar]
 
 
 def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int] | None = None,

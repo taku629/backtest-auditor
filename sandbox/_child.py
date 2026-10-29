@@ -15,7 +15,8 @@ import signal
 import sys
 import traceback
 
-ALLOWED_IMPORTS = {"numpy", "pandas", "math"}
+ALLOWED_IMPORTS = {"numpy", "pandas", "math", "datetime"}
+STUB_FILE = "adapter_stubs.py"   # trusted vectorbt/backtrader stand-ins (audit/adapters.py), same directory
 REMOVED_BUILTINS = {"open", "exec", "eval", "compile", "input", "breakpoint", "globals", "locals", "vars",
                     "getattr", "setattr", "delattr", "help", "exit", "quit", "memoryview", "__loader__",
                     "__spec__", "copyright", "credits", "license"}
@@ -25,6 +26,17 @@ def _emit(obj):
     out = sys.__stdout__.buffer
     out.write(json.dumps(obj).encode())
     out.flush()
+
+
+def _load_stubs():
+    """Load the trusted adapter stubs by path (python -I does not put this directory on sys.path)."""
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), STUB_FILE)
+    spec = importlib.util.spec_from_file_location("bta_adapter_stubs", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def main():
@@ -58,10 +70,15 @@ def main():
     socket.getaddrinfo = _no_net  # type: ignore[assignment]
 
     real_import = builtins.__import__
+    stubs = _load_stubs()
+    stub_mods = stubs.build_modules()
 
     def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if level == 0 and name in stub_mods:   # trusted stand-ins: vectorbt, backtrader, bta_adapter
+            return stub_mods[name] if fromlist else stub_mods[name.split(".")[0]]
         if level != 0 or name.split(".")[0] not in ALLOWED_IMPORTS:
-            raise ImportError(f"import of '{name}' is not allowed (allowed: numpy, pandas, math)")
+            raise ImportError(f"import of '{name}' is not allowed (allowed: numpy, pandas, math, datetime; "
+                              "vectorbt/backtrader resolve to the auditor's stubs)")
         return real_import(name, globals, locals, fromlist, level)
 
     safe_builtins = {k: v for k, v in vars(builtins).items() if k not in REMOVED_BUILTINS}
@@ -96,7 +113,7 @@ def main():
             w = w.reindex(columns=ref.columns).apply(pd.to_numeric, errors="coerce")
             arr = np.ascontiguousarray(w.to_numpy(dtype=np.float64))
             outputs.append({"shape": list(arr.shape), "b64": base64.b64encode(arr.tobytes()).decode()})
-        result = {"ok": True, "outputs": outputs, "notes": sorted(set(notes))}
+        result = {"ok": True, "outputs": outputs, "notes": sorted(set(notes) | set(stubs.notes()))}
     except BaseException as e:  # noqa: BLE001 - report everything, including SystemExit/MemoryError
         tb = traceback.extract_tb(e.__traceback__)
         frames = [f for f in tb if f.filename == "<strategy>"]

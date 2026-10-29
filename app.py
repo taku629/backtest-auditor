@@ -91,7 +91,21 @@ def leak_zoo() -> dict:
         name = sdef.get("name") or sdef.get("id")
         bug = sdef.get("bug") or ""
         out[f"{mark} · {name}" + (f" ({bug})" if bug and bug != "none" else "")] = sdef["stripped"]
+    ex = os.path.join(os.path.dirname(os.path.abspath(__file__)), "examples")
+    for fname, label in ADAPTER_EXAMPLES:   # other strategy formats, adapted by audit/adapters.py
+        try:
+            out[label] = open(os.path.join(ex, fname), encoding="utf-8").read()
+        except OSError:
+            pass
     return out
+
+
+ADAPTER_EXAMPLES = [
+    ("backtrader_leaky.py", "✗ leak · Adapters: backtrader Strategy reading self.data.close[1]"),
+    ("backtrader_clean.py", "✓ honest · Adapters: backtrader SMA crossover"),
+    ("vectorbt_leaky.py", "✗ leak · Adapters: vectorbt script with close.shift(-1) entries"),
+    ("vectorbt_clean.py", "✓ honest · Adapters: vectorbt RSI get_signals(close)"),
+]
 
 
 def short_model(m: str) -> str:
@@ -345,11 +359,24 @@ with tab_audit:
                                                (f"; skipped {len(r['skipped'])} magic/invalid line(s)" if r.get("skipped") else ""))
                 st.rerun()
             else:
+                from audit.adapters import adapt_or_none
+                src = up_nb.getvalue().decode("utf-8", errors="replace")
+                ad = adapt_or_none(src) if not up_nb.name.endswith(".ipynb") else None
+                if ad is not None and ad.adapted:
+                    st.session_state["user_code"] = src
+                    st.session_state["nb_info"] = f"Loaded **{up_nb.name}**. {ad.caption}"
+                    st.rerun()
                 st.error(r.get("error") or "Could not extract generate_signals from this file.")
         if st.session_state.get("nb_info"):
             st.caption(st.session_state["nb_info"])
-        user_code = st.text_area("Strategy code: def generate_signals(data) -> weights DataFrame",
+        user_code = st.text_area("Strategy code: generate_signals(data) -> weights, or strategy(close) / "
+                                 "vectorbt entries & exits / a backtrader Strategy (auto-detected)",
                                  key="user_code", height=260)
+        from audit.adapters import adapt_or_none
+        _ad = adapt_or_none(user_code or "")
+        if _ad is not None and _ad.adapted:
+            st.caption(f"{_ad.caption}: the audit appends a small `generate_signals` wrapper (your line numbers "
+                       "are kept). " + " ".join(_ad.notes[:1]))
     run = st.button("Run audit loop", type="primary")
     if not live:
         st.caption("Mock mode replays canned Coder drafts (picked by keyword) and a rule-based Auditor; "
@@ -575,6 +602,15 @@ def RunTrace_json(trace: dict) -> str:  # noqa: N802
 
 
 # ----------------------------------------------------------------------------- run
+def _initial_code(code):
+    """User code in another format (vectorbt, backtrader, strategy(close)) gets the adapter wrapper appended."""
+    if not code:
+        return None
+    from audit.adapters import adapt_or_none
+    ad = adapt_or_none(code)
+    return ad.code if ad is not None and ad.adapted else code
+
+
 with tab_audit:
     if run and hyp.strip():
         if live:
@@ -621,7 +657,7 @@ with tab_audit:
 
         try:
             trace: RunTrace = run_audit_loop(hyp.strip(), data, llm, max_iters=max_iters, cost_bps=float(cost_bps),
-                                             on_event=on_event, initial_code=(user_code or None),
+                                             on_event=on_event, initial_code=_initial_code(user_code),
                                              quick_fix=use_quick_fix)
             status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
                           state="complete" if trace.final_status == "clean" else "error", expanded=False)

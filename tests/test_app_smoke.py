@@ -40,3 +40,22 @@ def test_app_real_universe(monkeypatch):
     [b for b in at.button if b.label == "Run audit loop"][0].click()
     at.run()
     assert not at.exception
+
+
+def test_app_adapted_backtrader(monkeypatch):
+    """Pasted backtrader code is detected, adapted, audited and quick-fixed in the UI."""
+    monkeypatch.setenv("USE_MOCK", "1")
+    monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
+    at = AppTest.from_file(APP, default_timeout=180)
+    at.run()
+    [s for s in at.slider if s.label.startswith("Demo pacing")][0].set_value(0.0)
+    [r for r in at.radio if "Audit my own strategy code" in r.options][0].set_value("Audit my own strategy code")
+    at.run()
+    code = (Path(APP).parent / "examples" / "backtrader_leaky.py").read_text(encoding="utf-8")
+    [t for t in at.text_area if t.key == "user_code"][0].set_value(code)
+    at.run()
+    assert any("Detected: backtrader Strategy" in c.value for c in at.caption)
+    [b for b in at.button if b.label == "Run audit loop"][0].click()
+    at.run()
+    assert not at.exception
+    assert any("Clean after" in s.value for s in at.success)

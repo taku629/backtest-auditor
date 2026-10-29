@@ -140,6 +140,7 @@ def scan_code(code: str) -> list[Finding]:
                     f"Use a trailing estimate (.rolling(n).{attr}() or .expanding().{attr}()) "
                     f"or a cross-sectional one (axis=1)."))
     out += _pandas_trap_rules(tree, snip)
+    out += future_bar_rules(tree, snip)
     # The generic full_sample_statistic finding is kept next to the more specific rules on purpose:
     # downstream tools (audit_cli suspect-line mapping) key on it.
     # de-duplicate (same rule on the same line)
@@ -158,7 +159,7 @@ def scan_code(code: str) -> list[Finding]:
 LOOKAHEAD_RULE_IDS = {"negative_shift", "negative_pct_change", "negative_diff", "centered_window", "backward_fill",
                       "interpolation", "full_sample_statistic", "survivor_universe", "time_axis_rank",
                       "time_axis_demean", "full_sample_imputation", "resample_start_label", "period_transform",
-                      "reversed_time_window", "pooled_quantile"}
+                      "reversed_time_window", "pooled_quantile", "future_bar_index"}
 
 ROW_AXIS = (0, "index", "rows")
 COL_AXIS = (1, "columns")
@@ -408,3 +409,52 @@ def _pooled_panel(expr: ast.AST, stacked_names: set[str]) -> bool:
         return True
     b = nodes[-1]
     return isinstance(b, ast.Name) and b.id in stacked_names
+
+
+# ----------------------------------------------------------------------------
+# backtrader line indexing (audit/adapters.py): line[1] is the NEXT bar
+# ----------------------------------------------------------------------------
+def _pos_int(node) -> int:
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd) and isinstance(node.operand, ast.Constant):
+        return node.operand.value if isinstance(node.operand.value, int) else 0
+    return 0
+
+
+def _rooted_at_self(node) -> bool:
+    while isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
+        node = node.func if isinstance(node, ast.Call) else node.value
+    return isinstance(node, ast.Name) and node.id == "self"
+
+
+def future_bar_rules(tree: ast.Module, snip) -> list[Finding]:
+    """In a module importing backtrader: ``self.<line>[k]`` with k > 0, ``.get(ago=k>0)``, ``.date(k>0)``."""
+    uses_bt = any((isinstance(n, ast.Import) and any(a.name.split(".")[0] == "backtrader" for a in n.names)) or
+                  (isinstance(n, ast.ImportFrom) and (n.module or "").split(".")[0] == "backtrader")
+                  for n in ast.walk(tree))
+    if not uses_bt:
+        return []
+    out = []
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        for node in ast.walk(cls):
+            k, what = 0, ""
+            if isinstance(node, ast.Subscript) and _rooted_at_self(node.value):
+                inner = node.value
+                if isinstance(inner, ast.Attribute) and inner.attr in ("datas", "dnames"):
+                    continue          # self.datas[1] is the second feed, not the future
+                k, what = _pos_int(node.slice), f"[{_pos_int(node.slice)}]"
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and _rooted_at_self(node.func):
+                if node.func.attr == "get":
+                    k = _pos_int(_kw(node, "ago") or (node.args[0] if node.args else None))
+                    what = f".get(ago={k})"
+                elif node.func.attr in ("date", "datetime", "time"):
+                    k = _pos_int(node.args[0] if node.args else _kw(node, "ago"))
+                    what = f".{node.func.attr}({k})"
+            if k > 0:
+                out.append(Finding(
+                    "future_bar_index", node.lineno, snip(node), "critical",
+                    f"backtrader line index {what} reads {k} bar(s) AHEAD ([0] is the current bar, [-1] the "
+                    f"previous one); with preloaded data backtrader returns the future value.",
+                    "Use [0] (current bar) or negative indices ([-1], [-2]) only."))
+    return out

@@ -4,7 +4,10 @@
     python audit_cli.py strategies/*.py [--data synthetic|csv:PATH] [--format text|markdown|json|sarif]
                         [--fail-on critical|high|warning] [--out FILE] [--sarif-out FILE] [--fix [--write]]
 
-Each file must define ``generate_signals(data) -> weights``. Jupyter notebooks (``.ipynb``) are accepted:
+Each file defines ``generate_signals(data) -> weights``, or is in another format that ``audit/adapters.py``
+adapts automatically (``--strategy-format auto|signals|function|vectorbt|backtrader``): a function such as
+``strategy(close)`` returning weights / bool / ±1 signals / (entries, exits), vectorbt code calling
+``vbt.Portfolio.from_signals``, or a backtrader ``bt.Strategy`` subclass. Jupyter notebooks (``.ipynb``) are accepted:
 ``notebook.py`` extracts ``generate_signals`` plus the helpers, constants and imports it uses, and findings
 are reported as "cell N, line M". The strategy is executed in the existing sandbox
 (``sandbox/runner.py``) and checked by the existing deterministic battery (``audit/leak_tests.py``).
@@ -105,6 +108,8 @@ class FileResult:
     equity: dict = field(default_factory=dict, repr=False)       # {"dates", "values"} for --report
     fix_equity: dict = field(default_factory=dict, repr=False)   # equity of the accepted Quick fix
     fix_metrics: dict = field(default_factory=dict, repr=False)  # full metrics of the accepted Quick fix
+    adapter: dict = field(default_factory=dict)    # audit/adapters.py: format, entry, caption, notes
+    adapted: object = field(default=None, repr=False)   # the Adapted object (to strip the wrapper from fixes)
 
     def cell_of(self, line: int) -> tuple[int, int] | None:
         """(cell, line in cell) for a line of the audited code when it came from a notebook."""
@@ -127,6 +132,7 @@ class FileResult:
         return {"path": self.path, "passed": not self.fails_threshold(fail_on), "error": self.error or None,
                 "def_line": self.def_line, "metrics": self.metrics, "tests": self.tests,
                 "static_findings": self.findings, "seconds": round(self.seconds, 3),
+                **({"adapter": self.adapter} if self.adapter else {}),
                 **({"fixed_path": self.fixed_path, "fix_status": self.fix_status} if self.fix_status else {}),
                 **({"quick_fix": {k: v for k, v in self.quick_fix.items() if k != "code"}} if self.quick_fix else {}),
                 **({"notebook": {**self.notebook, "extracted_code": self.code}} if self.notebook else {})}
@@ -205,8 +211,9 @@ def key_evidence(test: dict) -> list[str]:
     if n == "future_perturbation":
         lz = ev.get("localized") or {}
         if lz.get("found") and lz.get("entry"):
+            how = "static, adapted code" if str(lz.get("method", "")).startswith("static") else "dynamic"
             out.append(f"leak enters at {lz['entry'].get('where') or 'line ' + str(lz['entry']['line'])} "
-                       f"(dynamic): `{lz['entry']['source_line']}`")
+                       f"({how}): `{lz['entry']['source_line']}`")
         out.append(f"leaking cut dates: {ev.get('n_leaking_cuts')}/{ev.get('n_cuts')}; "
                    f"max |weight change| {ev.get('max_abs_weight_change')}")
         for c in (ev.get("cuts") or [])[:3]:
@@ -253,7 +260,8 @@ def parse_param_grid(spec: str) -> dict[str, list[float]] | None:
 
 
 def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_bps: float = 10.0,
-               timeout: float = 90.0, pbo: bool = True, param_grid: dict | None = None) -> FileResult:
+               timeout: float = 90.0, pbo: bool = True, param_grid: dict | None = None,
+               strategy_format: str = "auto") -> FileResult:
     t0 = time.time()
     nb: dict = {}
     if path.suffix.lower() == ".ipynb":
@@ -263,7 +271,25 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
         code = nb["code"]
     else:
         code = path.read_text(encoding="utf-8")
+    from audit.adapters import AdapterError, adapt
+    adapted = None
+    try:
+        adapted = adapt(code, strategy_format)
+    except AdapterError as e:
+        if strategy_format != "auto":
+            res = FileResult(display_path(path), str(path.resolve()), code=code, error=str(e))
+            res.tests = [{"name": "sandbox", "passed": False, "severity": "critical", "blocking": True,
+                          "summary": "The strategy format could not be adapted, so the dynamic tests did not run.",
+                          "evidence": {"error": str(e)}, "lines": [], "suggested_fix": str(e)}]
+            res.seconds = time.time() - t0
+            return res
+    if adapted is not None and adapted.adapted:
+        code = adapted.code
     res = FileResult(display_path(path), str(path.resolve()), def_line=def_line_of(code), code=code)
+    if adapted is not None and adapted.adapted:
+        res.adapter, res.adapted = adapted.to_dict(), adapted
+        res.def_line = 1
+        pbo = pbo and adapted.pbo
     if nb:
         res.notebook = {k: nb[k] for k in ("line_map", "cell_count", "code_cell_count", "entry_cell", "kept",
                                            "skipped", "warnings")}
@@ -273,7 +299,8 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
         if violations:
             raise SandboxError("Sandbox policy violation:\n" + "\n".join(violations))
         rep = run_audit(data, SandboxExecutor(code, timeout), code, n_trials=1, cost_bps=cost_bps,
-                        n_cuts=n_cuts, seed=seed, pbo=pbo, pbo_timeout=timeout, param_grid=param_grid)
+                        n_cuts=n_cuts, seed=seed, pbo=pbo, pbo_timeout=timeout, param_grid=param_grid,
+                        localize=(adapted is None or adapted.localizable))
         rd = rep.to_dict()
         res.tests, res.metrics = rd["tests"], rd["metrics"]
         res.raw = rd
@@ -300,7 +327,9 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
             same = [x["rule"] for x in t["lines"] if x["line"] == e["line"]]
             t["lines"] = [{"line": e["line"], "rule": ", ".join(["dynamic_leak_entry", *same]),
                            "snippet": e["source_line"], "severity": t["severity"],
-                           "message": f"leak enters at line {e['line']} (dynamic): {e['kind']}",
+                           "message": f"leak enters at line {e['line']} "
+                                      f"({'static' if str(lz.get('method', '')).startswith('static') else 'dynamic'}): "
+                                      f"{e['kind']}",
                            "fix": t.get("suggested_fix", "")}] + [x for x in t["lines"] if x["line"] != e["line"]]
     res.tests.sort(key=lambda t: (t["passed"], SEVERITY_ORDER.get(t["severity"], 9)))
     _annotate_cells(res)
@@ -364,6 +393,8 @@ def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iter
     if not res.failing() or not any(t.get("blocking") for t in res.tests):
         res.fix_status = "not_needed"
         return
+    if quick and res.adapted is not None and not res.adapted.localizable:
+        quick = False   # module-level script wrapped with shifted lines: patches would not map back
     if quick and res.raw and (res.code or not res.notebook):
         from audit.quickfix import public, quick_fix
         code = res.code or path.read_text(encoding="utf-8")
@@ -378,7 +409,8 @@ def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iter
             res.fix_status = "quick_fix"
             if write:
                 out = path.with_name(path.stem + ".fixed.py")
-                out.write_text(qf["code"], encoding="utf-8")
+                fixed = res.adapted.strip(qf["code"]) if res.adapted is not None else qf["code"]
+                out.write_text(fixed, encoding="utf-8")
                 res.fixed_path = display_path(out)
             return
     if not llm:
@@ -467,6 +499,10 @@ def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
             out.append(f"  backtest: Sharpe {m.get('sharpe', 0):.2f}, CAGR {m.get('cagr', 0):.1%}, "
                        f"max DD {m.get('max_drawdown', 0):.1%}, turnover {m.get('turnover_annual', 0):.1f}x/yr")
         out += _notebook_text(r)
+        if r.adapter:
+            out.append(f"  {r.adapter['caption']}")
+            for n in r.adapter.get("notes", [])[:2]:
+                out.append(f"    · {n}")
         if r.error and not (r.notebook and not r.code):
             out.append(f"  sandbox error: {'; '.join(r.error.splitlines())[:300]}")
         out.append("=" * 78)
@@ -505,6 +541,8 @@ def render_markdown(results: list[FileResult], fail_on: str, data_desc: str) -> 
             m = r.metrics
             out.append(f"Sharpe **{m.get('sharpe', 0):.2f}**, CAGR {m.get('cagr', 0):.1%}, "
                        f"max DD {m.get('max_drawdown', 0):.1%}")
+        if r.adapter:
+            out.append(f"\n> {_md_escape(r.adapter['caption'])}")
         if r.notebook:
             out += [""] + [f"> {_md_escape(x.strip())}  " for x in _notebook_text(r)]
         elif r.error:
@@ -698,7 +736,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("paths", nargs="+", help="strategy .py / .ipynb files or globs (quoted globs are expanded, "
                                              "** allowed)")
     ap.add_argument("--data", default="synthetic", help="'synthetic' (default, seeded panel) or 'csv:PATH'")
-    ap.add_argument("--format", choices=list(RENDERERS), default="text")
+    ap.add_argument("--format", choices=list(RENDERERS), default="text", help="report format")
+    ap.add_argument("--strategy-format", "--input-format", dest="strategy_format", default="auto",
+                    choices=["auto", "signals", "function", "vectorbt", "backtrader"],
+                    help="strategy code format (audit/adapters.py); auto-detected by default")
     ap.add_argument("--fail-on", choices=list(FAIL_ON), default="high",
                     help="exit 1 if any test of this severity or worse fails (warning = medium/low too)")
     ap.add_argument("--out", default="", help="write the report here instead of stdout")
@@ -747,7 +788,8 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for p in files:
         r = audit_file(p, data, seed=a.seed, n_cuts=a.n_cuts, cost_bps=a.cost_bps, timeout=a.timeout,
-                       pbo=not a.no_pbo, param_grid=parse_param_grid(a.param_grid))
+                       pbo=not a.no_pbo, param_grid=parse_param_grid(a.param_grid),
+                       strategy_format=a.strategy_format)
         if a.fix:
             try:
                 propose_fix(p, r, data, mock=a.mock_llm, max_iters=a.max_iters, cost_bps=a.cost_bps,

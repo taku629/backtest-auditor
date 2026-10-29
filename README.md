@@ -41,7 +41,7 @@ found later, with real money. Asking another LLM "is this code correct?" is not 
 | **Future-perturbation** | For random cut dates *t*, all data after *t* is scrambled (returns shuffled, sign-flipped and noised; some tickers delisted, others get short NaN gaps, and names already delisted at *t* trade again, so a `bfill`/`interpolate` over a missing stretch pulls post-*t* values into the past). Signals at dates ≤ *t* must be bit-identical. Reports the first leaking date and the size of the weight change. | critical |
 | **Survivorship** | (a) no weight on tickers before they list; (b) counterfactual where delisted names keep trading: past signals must not change; (c) warns when the dataset has no delisted names at all. | critical / high |
 | **Execution delay** | Sharpe at t+1 vs t+2. A collapse of more than 25% from a Sharpe above 1 points to same-bar or look-ahead execution. | high |
-| **Static AST scan** | `.shift(-n)`, `pct_change(-n)`, `diff(-n)`, `rolling(center=True)`, `bfill`/`backfill`, `dropna(axis=1)`, full-sample `mean()/std()` normalisation, `interpolate`; plus pandas default-axis traps as non-blocking hints: `rank()` without `axis`, `X.sub(X.mean(), axis=1)` / `X - X.mean()`, `fillna(X.mean())`, start-labelled `resample('MS').last()`, `groupby(month).transform('last')`, rolling/cum* on a newest-first index, `pd.qcut`/`quantile` on a stacked panel. | critical/high rules block, others warn |
+| **Static AST scan** | `.shift(-n)`, `pct_change(-n)`, `diff(-n)`, `rolling(center=True)`, `bfill`/`backfill`, `dropna(axis=1)`, full-sample `mean()/std()` normalisation, `interpolate`; plus pandas default-axis traps as non-blocking hints: `rank()` without `axis`, `X.sub(X.mean(), axis=1)` / `X - X.mean()`, `fillna(X.mean())`, start-labelled `resample('MS').last()`, `groupby(month).transform('last')`, rolling/cum* on a newest-first index, `pd.qcut`/`quantile` on a stacked panel; for backtrader code, a positive line index such as `self.data.close[1]` (the next bar). | critical/high rules block, others warn |
 | **Deflated Sharpe Ratio** | Bailey & López de Prado (2014): the probability that the Sharpe beats the expected maximum of *N* unskilled trials, where *N* = loop iterations so far; corrects for skew and kurtosis. | warning |
 | **Probability of Backtest Overfitting** | Bailey, Borwein, López de Prado & Zhu (2015), CSCV over a grid of the strategy's own parameters (≤ 16 variants, 0.5×–2×). Fails above PBO 0.5. Runs only once no blocking test fails. See [below](#probability-of-backtest-overfitting-pbo). | warning |
 | **Train/test split** | 70/30 Sharpe degradation. | warning |
@@ -66,7 +66,7 @@ hit rate, skew and kurtosis. The engine is causal by construction. The audit cat
 ### Sandbox (`sandbox/`)
 
 Generated code runs in a separate `python -I` process with:
-- an AST policy: only `numpy`, `pandas` and `math` imports; no dunder or private attributes; no file, network or eval APIs;
+- an AST policy: only `numpy`, `pandas`, `math` and `datetime` imports (`vectorbt` / `backtrader` resolve to the trusted adapter stubs, never the real libraries); no dunder or private attributes; no file, network or eval APIs;
 - restricted builtins (no `open`, `exec`, `eval`, `getattr` …) and an import allow-list at runtime;
 - an **empty environment**, so API keys never reach generated code; sockets disabled; a temp working directory;
 - OS limits: CPU seconds, file size 0 (no writes), no fork, and a wall-clock timeout;
@@ -125,7 +125,7 @@ they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shi
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 267 tests, fully offline
+pytest                                   # 303 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
@@ -240,6 +240,35 @@ python audit_cli.py strategy.py --fix --no-llm --report audit.html   # or audit.
 python cli.py --code examples/leaky_momentum.py --report run.html     # full agent loop (mock unless --live)
 ```
 
+## Strategy format adapters: vectorbt, backtrader, `strategy(close)`
+
+Real research code is rarely written as `generate_signals(data)`. `audit/adapters.py` detects the format and appends
+a small `generate_signals` wrapper (your lines keep their line numbers, so findings, the leak line and Quick fix
+diffs still point at your code). The wrapper runs in the same sandbox and calls trusted stand-ins in
+`sandbox/adapter_stubs.py`: `import vectorbt` / `import backtrader` resolve to those stubs there, so **neither
+library is installed or needed**, and the AST policy and runtime limits are unchanged.
+
+| Format | Detected from | How it becomes weights |
+|---|---|---|
+| **Function** | `strategy(df)`, `signals(close)`, `compute_weights(prices)`, `get_positions(data)`, … (or the one top-level function whose arguments are named `close/prices/df/open/high/low/volume/data`) | arguments bound by name (`data` = OHLCV dict, `close/prices/df` = close panel). Returned weights are used as-is; a **bool or +1/0/−1** frame becomes equal weight per date, `w = s / Σ|s|`; `(entries, exits)` or a Portfolio is handled as below |
+| **vectorbt** | `import vectorbt as vbt` plus a function returning `(entries, exits)` / a Portfolio, or module-level script code ending in `vbt.Portfolio.from_signals(close, entries, exits)` | entries/exits → long position state machine (entry while long and exit while flat do nothing; both on one bar cancel; `short_entries/short_exits` and `direction` honoured) → equal weight across names in position. Stubbed: `vbt.MA.run`, `vbt.RSI.run` (`*_crossed_above/below`, `*_above/below`), `.vbt.crossed_above/below`, and `vbt.YFData.download(...).get("Close")`, which returns the audit panel (no network) |
+| **backtrader** | a `bt.Strategy` subclass (the one passed to `cerebro.addstrategy` if there are several) | replayed bar by bar **once per ticker**, on that ticker's own trading days. Lines index like backtrader: `[0]` current bar, `[-1]` previous, and **`[1]` the next bar**, which is what backtrader returns with preloaded data and exactly the leak to catch. Indicators: SMA, EMA, RSI (Wilder), Highest, Lowest, StdDev, ROC, Momentum, CrossOver, plus line arithmetic and comparisons; `params`/`self.p`, `self.position`, `notify_order` (orders fill at the next bar's open). `buy/sell` add ±size units (default 1), `close()` goes flat, `order_target_percent/size` set the target; weights = exposure / max(1, Σ\|exposure\|) per date |
+
+CLI: auto-detected, or forced with `audit_cli.py s.py --strategy-format vectorbt` (`auto|signals|function|vectorbt|backtrader`;
+`--format` stays the report format). The app detects pasted or uploaded `.py` code and shows e.g.
+*"Detected: backtrader Strategy `SmaTrend` → adapted"*; the four examples are in the LeakBench picker under "Adapters".
+
+Examples (`examples/`, all in the test suite): `backtrader_leaky.py` reads `self.data.close[1]` → future-perturbation
+fails at 6/6 cut dates (Sharpe 4.22), the static rule `future_bar_index` flags line 23, and Quick fix rewrites
+`[1]` → `[0]` (Sharpe 0.27, clean); `backtrader_clean.py` (SMA crossover) passes. `vectorbt_leaky.py` (entries
+use `close.shift(-1)`, Sharpe 6.55) fails; `vectorbt_clean.py` (RSI `get_signals(close)`) passes.
+The dynamic localizer cannot see inside the stubs, so when its trace ends at the wrapper call the report points
+at the static look-ahead finding in your lines instead and says so.
+
+Cost: a backtrader replay is a pure-Python bar loop, about 0.25 s CPU per 50 tickers × 6 years dataset (a full
+audit runs 8 datasets: ~2 s locally, plus the localizer and Quick fix when it leaks). Replays above 600,000
+ticker-bars per dataset are refused with a message, and PBO is skipped for backtrader strategies.
+
 ## Jupyter notebooks
 
 Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
@@ -275,12 +304,14 @@ agents/                config (model routing, pricing), LLM clients (Nebius + Mo
 audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py, pbo.py,
                        localize.py (dynamic leak line), quickfix.py (deterministic repair), report.py (HTML/MD report)
 engine/backtester.py   causal daily backtester and metrics
-sandbox/               runner.py (policy + subprocess), _child.py (restricted executor)
+sandbox/               runner.py (policy + subprocess), _child.py (restricted executor), adapter_stubs.py
+                       (trusted vectorbt / backtrader stand-ins)
+audit/adapters.py      strategy format detection + generate_signals wrapper
 data/                  synthetic.py (seeded panel), loader.py (CSV)
 bench/                 LeakBench strategies, runner, results, Streamlit view
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (267 tests)
+tests/                 pytest suite (303 tests)
 ```
 
 ## Limitations
@@ -288,6 +319,17 @@ tests/                 pytest suite (267 tests)
 - The synthetic data is a test bench, not a claim about real markets. Use the CSV loader for real data.
 - Perturbation tests detect any dependence on future rows. They cannot tell a legitimate use of future data from a bug, but a backtest has no legitimate use for it.
 - The thresholds for execution delay, DSR and plausibility are heuristics and can be configured in code.
+- Adapters are small, honest stand-ins, not the libraries. Not modelled (each fails with a clear "not supported"
+  error, never silently): backtrader broker cash/value, sizers, analyzers, observers, Limit/Stop/bracket orders,
+  `cancel`, several data feeds in one strategy (each ticker is replayed alone, so pair or cross-sectional logic
+  inside `next()` cannot be expressed), custom `bt.Indicator` classes, indicators beyond the list above; vectorbt
+  stops (`sl_stop`, `tp_stop`), custom sizing, `from_orders` / `from_order_func`, parameter sweeps (lists of
+  windows). `start()`, `stop()` and `notify_trade()` are not called. Cerebro setup and vectorbt fees/cash are
+  ignored (the auditor applies its own next-bar execution and costs), and the equal-weight conversion of signals is
+  a convention, so metrics differ from what the original library reports; the leak tests do not depend on it.
+- Notebooks still need a `generate_signals` cell; the adapters apply to `.py` files and pasted code.
+- A module-level vectorbt script whose first statement directly follows the imports (no blank line) is wrapped
+  with a one-line shift; localization and Quick fix are then switched off for it.
 
 ## License
 

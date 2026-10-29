@@ -3,7 +3,8 @@
 Layers of defence (defence in depth, not a security boundary for hostile
 multi-tenant use; for that, add a container/gVisor/Firecracker layer):
 
-1. Static policy check (AST): only ``numpy``, ``pandas``, ``math`` imports; no
+1. Static policy check (AST): only ``numpy``, ``pandas``, ``math``, ``datetime`` imports (plus ``vectorbt`` /
+   ``backtrader`` / ``bta_adapter``, which resolve to the trusted stubs in ``adapter_stubs.py``, never the real libraries); no
    dunder or private attribute access; no file/network/process APIs by name.
 2. Child process: ``python -I`` with an empty environment (API keys never reach
    it), temp working dir, restricted builtins (no open/exec/eval/getattr...),
@@ -30,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 CHILD = Path(__file__).with_name("_child.py")
-ALLOWED_IMPORTS = {"numpy", "pandas", "math"}
+ALLOWED_IMPORTS = {"numpy", "pandas", "math", "datetime", "vectorbt", "backtrader", "bta_adapter"}
 BLOCKED_NAMES = {"open", "exec", "eval", "compile", "__import__", "globals", "locals", "vars", "getattr",
                  "setattr", "delattr", "input", "breakpoint", "exit", "quit", "help", "memoryview"}
 BLOCKED_ATTRS = {
@@ -83,7 +84,8 @@ def check_policy(code: str) -> list[str]:
         elif isinstance(node, (ast.Global, ast.Nonlocal)):
             v.append(f"line {node.lineno}: global/nonlocal not allowed")
     if not any(isinstance(n, ast.FunctionDef) and n.name == "generate_signals" for n in tree.body):
-        v.append("missing top-level function 'generate_signals(data)'")
+        v.append("missing top-level function 'generate_signals(data)' (other formats - strategy(close), "
+                 "vectorbt entries/exits, backtrader Strategy - are adapted by audit/adapters.py first)")
     return v
 
 
