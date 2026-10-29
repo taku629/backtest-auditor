@@ -78,6 +78,7 @@ TEST_HELP = {
     "deflated_sharpe": "Bailey & Lopez de Prado deflated Sharpe ratio (selection bias).",
     "train_test_split": "70/30 in-sample vs out-of-sample Sharpe degradation.",
     "non_trivial": "Strategy must take at least one position.",
+    "pbo": "Probability of Backtest Overfitting (Bailey et al. 2015, CSCV) over a grid of the strategy's own parameters.",
     "sandbox": "Strategy must pass the sandbox policy and run without error.",
 }
 
@@ -222,6 +223,10 @@ def key_evidence(test: dict) -> list[str]:
         out.append(f"Sharpe {ev.get('sharpe')}, CAGR {ev.get('cagr')}")
     elif n == "deflated_sharpe":
         out.append(f"DSR {ev.get('dsr')} (threshold {ev.get('threshold')})")
+    elif n == "pbo" and ev.get("status") == "ok":
+        out.append(f"PBO {ev.get('pbo'):.2f} ({ev.get('risk')} risk, fails above {ev.get('threshold')}); "
+                   f"{ev.get('n_variants')} variants x {ev.get('n_splits')} splits; degradation slope "
+                   f"{ev.get('degradation_slope'):.2f}; P(OOS loss) {ev.get('prob_oos_loss'):.0%}")
     elif n == "train_test_split":
         out.append(f"Sharpe train {ev.get('sharpe_train')} vs test {ev.get('sharpe_test')}")
     elif n == "sandbox":
@@ -232,8 +237,20 @@ def key_evidence(test: dict) -> list[str]:
 # ----------------------------------------------------------------------------
 # Audit
 # ----------------------------------------------------------------------------
+def parse_param_grid(spec: str) -> dict[str, list[float]] | None:
+    """'LOOKBACK=10,20,40;TOP=0.8,0.9' -> {'LOOKBACK': [10, 20, 40], 'TOP': [0.8, 0.9]}"""
+    if not spec:
+        return None
+    out = {}
+    for part in spec.split(";"):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k.strip()] = [float(x) for x in v.split(",") if x.strip()]
+    return out or None
+
+
 def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_bps: float = 10.0,
-               timeout: float = 90.0) -> FileResult:
+               timeout: float = 90.0, pbo: bool = True, param_grid: dict | None = None) -> FileResult:
     t0 = time.time()
     nb: dict = {}
     if path.suffix.lower() == ".ipynb":
@@ -253,7 +270,7 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
         if violations:
             raise SandboxError("Sandbox policy violation:\n" + "\n".join(violations))
         rep = run_audit(data, SandboxExecutor(code, timeout), code, n_trials=1, cost_bps=cost_bps,
-                        n_cuts=n_cuts, seed=seed)
+                        n_cuts=n_cuts, seed=seed, pbo=pbo, pbo_timeout=timeout, param_grid=param_grid)
         rd = rep.to_dict()
         res.tests, res.metrics = rd["tests"], rd["metrics"]
         res.raw = rd
@@ -668,6 +685,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--n-cuts", type=int, default=6)
     ap.add_argument("--cost-bps", type=float, default=10.0)
     ap.add_argument("--timeout", type=float, default=90.0, help="sandbox wall-clock seconds per file")
+    ap.add_argument("--no-pbo", action="store_true",
+                    help="skip the Probability of Backtest Overfitting test (parameter grid, CSCV)")
+    ap.add_argument("--param-grid", default="",
+                    help="explicit PBO grid for UPPERCASE constants / generate_signals defaults, "
+                         "e.g. 'LOOKBACK=10,20,40;TOP=0.8,0.9' (default: automatic 0.5x-2x grid)")
     ap.add_argument("--fix", action="store_true",
                     help="repair failing files: deterministic Quick fix first (prints a diff, no LLM), then the "
                          "Nemotron agent loop (needs NEBIUS_API_KEY) if no candidate passes")
@@ -698,7 +720,8 @@ def main(argv: list[str] | None = None) -> int:
 
     results = []
     for p in files:
-        r = audit_file(p, data, seed=a.seed, n_cuts=a.n_cuts, cost_bps=a.cost_bps, timeout=a.timeout)
+        r = audit_file(p, data, seed=a.seed, n_cuts=a.n_cuts, cost_bps=a.cost_bps, timeout=a.timeout,
+                       pbo=not a.no_pbo, param_grid=parse_param_grid(a.param_grid))
         if a.fix:
             try:
                 propose_fix(p, r, data, mock=a.mock_llm, max_iters=a.max_iters, cost_bps=a.cost_bps,

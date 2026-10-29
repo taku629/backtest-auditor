@@ -25,6 +25,7 @@ def test_app_mock_run(monkeypatch):
     assert any("Clean after" in s.value for s in at.success)
     assert any("Quick fix (no LLM)" in m.value for m in at.markdown)      # deterministic repair shown, $0
     assert any(c.language == "diff" and "+++ b/" in c.value for c in at.code)
+    assert any("Probability of Backtest Overfitting" in m.value for m in at.markdown)   # PBO panel (mock mode)
 
 
 def test_app_real_universe(monkeypatch):

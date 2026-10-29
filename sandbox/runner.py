@@ -99,14 +99,18 @@ class SandboxResult:
 
 
 def run_strategy(code: str, datasets: list[dict], *, timeout: float = 60.0, func_name: str = "generate_signals",
-                 mem_mb: int = 0, enforce_policy: bool = True) -> SandboxResult:
-    """enforce_policy=False skips only the static layer (used by tests to prove the runtime layer holds)."""
+                 mem_mb: int = 0, enforce_policy: bool = True, func_names: list[str] | None = None) -> SandboxResult:
+    """enforce_policy=False skips only the static layer (used by tests to prove the runtime layer holds).
+
+    ``func_names``: optional per-dataset function name (dataset i is passed to ``func_names[i]``); used by the
+    PBO grid (audit/pbo.py) to run all parameter variants in one process."""
     t0 = time.time()
     violations = check_policy(code) if enforce_policy else []
     if violations:
         return SandboxResult(False, error="Sandbox policy violation:\n" + "\n".join(violations),
                              policy_violations=violations, duration_s=time.time() - t0)
     payload = pickle.dumps({"code": code, "datasets": datasets, "func_name": func_name,
+                            "func_names": list(func_names) if func_names else None,
                             "cpu_seconds": int(timeout) + 1, "mem_mb": mem_mb},
                            protocol=pickle.HIGHEST_PROTOCOL)
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "OPENBLAS_NUM_THREADS": "1",

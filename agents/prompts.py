@@ -90,6 +90,8 @@ def compact_tests(tests: list[dict], include_passed: bool = True) -> str:
             ev["localized"] = {k: lz[k] for k in ("found", "entry", "error") if k in lz}
             if lz.get("chain"):
                 ev["localized"]["chain"] = [f"line {c['line']}: {c['source_line']}" for c in lz["chain"][:8]]
+        if t["name"] == "pbo":  # per-split arrays are for charts, not for the model
+            ev = {k: v for k, v in ev.items() if not isinstance(v, list) or k == "params"}
         slim.append({"name": t["name"], "passed": t["passed"], "severity": t["severity"],
                      "summary": t["summary"], "evidence": ev, "suggested_fix": t.get("suggested_fix", "")})
     return json.dumps(slim, indent=1, default=str)

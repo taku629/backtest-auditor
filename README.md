@@ -43,6 +43,7 @@ found later, with real money. Asking another LLM "is this code correct?" is not 
 | **Execution delay** | Sharpe at t+1 vs t+2. A collapse of more than 25% from a Sharpe above 1 points to same-bar or look-ahead execution. | high |
 | **Static AST scan** | `.shift(-n)`, `pct_change(-n)`, `diff(-n)`, `rolling(center=True)`, `bfill`/`backfill`, `dropna(axis=1)`, full-sample `mean()/std()` normalisation, `interpolate`; plus pandas default-axis traps as non-blocking hints: `rank()` without `axis`, `X.sub(X.mean(), axis=1)` / `X - X.mean()`, `fillna(X.mean())`, start-labelled `resample('MS').last()`, `groupby(month).transform('last')`, rolling/cum* on a newest-first index, `pd.qcut`/`quantile` on a stacked panel. | critical/high rules block, others warn |
 | **Deflated Sharpe Ratio** | Bailey & López de Prado (2014): the probability that the Sharpe beats the expected maximum of *N* unskilled trials, where *N* = loop iterations so far; corrects for skew and kurtosis. | warning |
+| **Probability of Backtest Overfitting** | Bailey, Borwein, López de Prado & Zhu (2015), CSCV over a grid of the strategy's own parameters (≤ 16 variants, 0.5×–2×). Fails above PBO 0.5. Runs only once no blocking test fails. See [below](#probability-of-backtest-overfitting-pbo). | warning |
 | **Train/test split** | 70/30 Sharpe degradation. | warning |
 | **Plausibility** | Sharpe above 3 after costs on daily equities is treated as a bug until shown otherwise. | warning |
 
@@ -124,7 +125,7 @@ they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shi
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 249 tests, fully offline
+pytest                                   # 262 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
@@ -195,6 +196,36 @@ Caveat: the rules are general, not file-specific, but they were written by the L
 view, so treat 19/24 as an in-sample number. Details: [`bench/QUICKFIX.md`](bench/QUICKFIX.md)
 (`python -m bench.run_quickfix`, offline).
 
+## Probability of Backtest Overfitting (PBO)
+
+The Deflated Sharpe corrects for how many *loop iterations* were tried. PBO asks a different question: if you had
+tuned this strategy's parameters on the backtest, would the winner keep winning? `audit/pbo.py` implements
+Combinatorially Symmetric Cross-Validation (Bailey, Borwein, López de Prado & Zhu, 2015):
+
+1. **Grid.** Parameters are module-level UPPERCASE numeric constants and numeric defaults of `generate_signals`;
+   without those, inline literals that act as parameters (lookback windows in `rolling/ewm/shift/pct_change/diff`,
+   thresholds such as `rank >= 0.9` or `rank <= 5`). `shift(1)` and `min_periods` are never varied (a literal
+   `min_periods` is scaled with its window). Each value is varied 0.5×–2× (for `0.9`-style quantile thresholds
+   the distance to 1 is scaled: top 10% → top 5–20%), at most 16 variants. You can pass your own grid:
+   `audit_cli.py s.py --param-grid "LOOKBACK=10,20,40;TOP=0.8,0.9"`.
+2. **Run.** All variants run in **one** sandbox process (each as a closure of the rewritten source), then
+   through the same backtester and costs: a T×N return matrix.
+3. **CSCV.** T is cut into 10 blocks (8 for short samples); for all 252 ways of picking 5 blocks as in-sample,
+   the in-sample best variant's out-of-sample rank ω gives a logit ln(ω/(1−ω)). **PBO = share of logits ≤ 0.**
+   Also reported: the logit histogram, the IS-vs-OOS Sharpe of the winner, the degradation slope and P(OOS loss).
+
+Verdict: PBO > 0.5 fails, 0.25–0.5 is "moderate", below is "low". The test is **non-blocking** (`medium`):
+the grid is the auditor's, not your actual search history, and a high PBO can simply mean the variants are nearly
+the same portfolio. It is skipped (with the reason) when there are no tunable parameters, fewer than 4 distinct
+variants, or a blocking test already fails (PBO of a leaky strategy measures the leak). Typical runtime 1–4 s.
+
+On the 15 clean LeakBench strategies (`bench/PBO.md`, `python -m bench.run_pbo`): median PBO 0.10;
+**6/15 exceed 0.5** (50/200 MA crossover 0.74, 12-1 momentum 0.65, low-vol 0.58, …). Those are leak-free but
+slow, market-heavy rules whose parameter variants are near-duplicates, so choosing among them by backtest is
+a coin flip; that is what PBO reports. The unit tests check that a noise-mined grid scores high and variants of a
+genuine signal score low. Caveat: the degradation slope comes out near −1 for every strategy (CSCV halves are
+complements of one sample), so it is shown but not used for the verdict.
+
 ## Jupyter notebooks
 
 Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
@@ -226,7 +257,7 @@ survivor-biased and the audit says so. See `data/real/README.md`.
 app.py                 Streamlit UI
 cli.py                 headless loop
 agents/                config (model routing, pricing), LLM clients (Nebius + Mock), prompts, loop, canned drafts
-audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py,
+audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py, pbo.py,
                        localize.py (dynamic leak line), quickfix.py (deterministic repair)
 engine/backtester.py   causal daily backtester and metrics
 sandbox/               runner.py (policy + subprocess), _child.py (restricted executor)
@@ -234,7 +265,7 @@ data/                  synthetic.py (seeded panel), loader.py (CSV)
 bench/                 LeakBench strategies, runner, results, Streamlit view
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (249 tests)
+tests/                 pytest suite (262 tests)
 ```
 
 ## Limitations

@@ -77,8 +77,13 @@ def main():
         if not callable(fn):
             raise NameError(f"function '{payload['func_name']}' is not defined")
         outputs, notes = [], []
-        for d in payload["datasets"]:
+        names = payload.get("func_names")
+        for k, d in enumerate(payload["datasets"]):
             ref = d["close"]
+            if names:
+                fn = g.get(names[k])
+                if not callable(fn):
+                    raise NameError(f"function '{names[k]}' is not defined")
             w = fn({k: v.copy() for k, v in d.items()})
             if isinstance(w, pd.Series):
                 raise TypeError("generate_signals must return a DataFrame (dates x tickers), got a Series")

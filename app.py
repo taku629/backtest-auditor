@@ -172,6 +172,57 @@ def leak_proof_chart(test: dict, data: dict) -> go.Figure | None:
     return fig
 
 
+def pbo_chart(test: dict) -> go.Figure | None:
+    """CSCV result: histogram of the IS-winner's OOS rank logits, and IS vs OOS Sharpe of the IS winner."""
+    from plotly.subplots import make_subplots
+    ev = test.get("evidence") or {}
+    if ev.get("status") != "ok" or not ev.get("logits"):
+        return None
+    lg = np.array(ev["logits"], dtype=float)
+    fig = make_subplots(rows=1, cols=2, subplot_titles=(
+        f"Logit of OOS rank of the IS winner (PBO = share ≤ 0: {ev['pbo']:.2f})",
+        "Sharpe of the IS winner: in-sample vs out-of-sample (annualised)"))
+    fig.add_trace(go.Histogram(x=lg[lg <= 0], name="≤ 0: overfit", marker_color=RED, xbins=dict(size=0.25),
+                               opacity=0.85), row=1, col=1)
+    fig.add_trace(go.Histogram(x=lg[lg > 0], name="> 0: generalises", marker_color=GREEN, xbins=dict(size=0.25),
+                               opacity=0.85), row=1, col=1)
+    fig.add_vline(x=0, line=dict(color=GREY, dash="dot"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=ev.get("is_sharpe_best_annual"), y=ev.get("oos_sharpe_best_annual"), mode="markers",
+                             marker=dict(size=5, color="#374151", opacity=0.55), name="CSCV split",
+                             showlegend=False), row=1, col=2)
+    fig.update_xaxes(title_text="logit", row=1, col=1)
+    fig.update_xaxes(title_text="IS Sharpe", row=1, col=2)
+    fig.update_yaxes(title_text="OOS Sharpe", row=1, col=2)
+    fig.update_layout(height=320, barmode="overlay", margin=dict(l=10, r=10, t=40, b=10), plot_bgcolor="white",
+                      paper_bgcolor="white", legend=dict(orientation="h", y=-0.25, x=0), font=dict(size=11))
+    fig.update_annotations(font_size=12)
+    return fig
+
+
+def render_pbo(tests: list[dict], key: str):
+    t = next((x for x in tests if x["name"] == "pbo"), None)
+    if t is None:
+        return
+    ev = t.get("evidence") or {}
+    st.markdown("**Probability of Backtest Overfitting** (Bailey, Borwein, López de Prado & Zhu 2015, CSCV)")
+    if ev.get("status") != "ok":
+        st.caption(t["summary"])
+        return
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("PBO", f"{ev['pbo']:.2f}", help="Share of CSCV splits where the in-sample best variant ranks at or "
+                                             "below the out-of-sample median. Fails above 0.5 (non-blocking).")
+    c2.metric("Risk", ev.get("risk", "–"))
+    c3.metric("P(OOS loss)", f"{ev['prob_oos_loss']:.0%}")
+    c4.metric("Variants × splits", f"{ev['n_variants']} × {ev['n_splits']}")
+    st.caption("Grid: " + "; ".join(f"`{p['name']}` ∈ {{{', '.join(f'{v:g}' for v in p['values'])}}}"
+                                    for p in ev.get("params", [])) + f" · {ev.get('seconds', 0):.1f}s in the sandbox. "
+               "The auditor builds this grid (0.5×–2× around each value), so it measures how fragile the choice of "
+               "parameters is, not your actual search history.")
+    fig = pbo_chart(t)
+    if fig is not None:
+        st.plotly_chart(fig, width="stretch", key=f"pbo_{key}")
+
+
 # ----------------------------------------------------------------------------- sidebar
 cfg = load_config()
 with st.sidebar:
@@ -480,6 +531,7 @@ def render_results(trace: dict, data: dict):
             st.markdown(f"**Deterministic tests on iteration {final['index'] + 1}**")
             st.dataframe(tests_table(final["tests"]).style.map(style_result, subset=["Result"]),
                          hide_index=True, width="stretch")
+            render_pbo(final["tests"], key=f"rep_{final['index']}")
             with st.expander("Raw evidence (JSON)"):
                 st.json(final["tests"], expanded=False)
         st.download_button("Download full trace (JSON)", RunTrace_json(trace), "backtest_auditor_trace.json",

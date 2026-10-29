@@ -336,6 +336,42 @@ def evaluate_overfitting(returns: pd.Series, n_trials: int, trial_sharpes: list[
     return [dsr, tt]
 
 
+def evaluate_pbo(code: str | None, data: dict, *, cost_bps: float = 10.0, execution: str = "open",
+                 timeout: float = 60.0, runner=None, param_grid: dict | None = None,
+                 skip_reason: str = "") -> TestResult:
+    """Probability of Backtest Overfitting (CSCV) over a grid of the strategy's own parameters (audit/pbo.py).
+
+    Non-blocking ("medium") by design: the grid is built by the auditor, not the researcher's actual search, and
+    a PBO near 0.5 can also mean the variants are near-identical (tuning adds nothing) rather than that the
+    strategy is a mined artefact. Fails when PBO > 0.5 (the in-sample best variant lands at or below the
+    out-of-sample median more often than not); 0.25 < PBO <= 0.5 passes with "moderate" risk."""
+    from audit.pbo import PBO_FAIL, compute_pbo, risk_label
+    if skip_reason:
+        res = {"status": "skipped", "reason": skip_reason}
+    elif not code:
+        res = {"status": "skipped", "reason": "no source code available"}
+    else:
+        try:
+            res = compute_pbo(code, data, cost_bps=cost_bps, execution=execution, timeout=timeout,
+                              runner=runner, param_grid=param_grid)
+        except Exception as e:  # noqa: BLE001 - PBO is extra evidence, it never breaks the audit
+            res = {"status": "skipped", "reason": f"PBO could not be computed: {type(e).__name__}: {e}"[:300]}
+    if res.get("status") != "ok":
+        return TestResult("pbo", True, "info", f"PBO skipped: {res.get('reason')}.", res)
+    pbo = res["pbo"]
+    risk = risk_label(pbo)
+    res["risk"], res["threshold"] = risk, PBO_FAIL
+    passed = pbo <= PBO_FAIL
+    params = ", ".join(p["name"] for p in res["params"])
+    summary = (f"PBO {pbo:.2f} ({risk} risk) over {res['n_variants']} variants of {params}, "
+               f"{res['n_splits']} CSCV splits: the in-sample best variant finishes at or below the out-of-sample median "
+               f"in {pbo:.0%} of splits; P(OOS loss) {res['prob_oos_loss']:.0%}.")
+    return TestResult("pbo", passed, "medium", summary, res,
+                      "" if passed else ("Picking parameters by backtest is not reliable here: the best in-sample "
+                                         "variant does no better than a random one out of sample. Fix parameters "
+                                         "a priori, use fewer of them, or confirm on fresh data."))
+
+
 def evaluate_static(code: str | None) -> TestResult:
     if not code:
         return TestResult("static_scan", True, "info", "No source code available for static scan.", {})
@@ -383,7 +419,8 @@ def in_process_executor(fn: Callable[[dict], pd.DataFrame]) -> Executor:
 
 def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_trials: int = 1,
               trial_sharpes: list[float] | None = None, cost_bps: float = 10.0, execution: str = "open",
-              n_cuts: int = 6, seed: int = 7, localize: bool = True) -> AuditReport:
+              n_cuts: int = 6, seed: int = 7, localize: bool = True, pbo: bool = False,
+              pbo_timeout: float = 60.0, pbo_runner=None, param_grid: dict | None = None) -> AuditReport:
     close = data["close"]
     cuts = choose_cuts(len(close), n_cuts, seed)
     rng = np.random.default_rng(seed + 1)
@@ -431,6 +468,12 @@ def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_tria
                                                        n_cuts=n_cuts)
         except Exception as e:  # noqa: BLE001 - localization is best-effort evidence, never breaks the audit
             fp_t.evidence["localized"] = {"found": False, "error": f"{type(e).__name__}: {e}"[:500]}
+    if pbo:  # after the leak tests: PBO of a leaky strategy measures the leak, not the tuning, so skip it then
+        blocking_now = [t.name for t in tests if t.blocking]
+        tests.append(evaluate_pbo(code, data, cost_bps=cost_bps, execution=execution, timeout=pbo_timeout,
+                                  runner=pbo_runner, param_grid=param_grid,
+                                  skip_reason=("blocking test(s) failed (" + ", ".join(blocking_now) + "); PBO is "
+                                               "computed once the strategy is leak-free") if blocking_now else ""))
     if bt1.metrics["avg_gross"] == 0:
         tests.append(TestResult("non_trivial", False, "high", "Strategy never takes a position.",
                                 {}, "Return non-zero target weights."))

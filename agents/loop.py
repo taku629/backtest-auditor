@@ -86,7 +86,7 @@ def _record(trace: RunTrace, it: Iteration | None, resp: LLMResponse, step: str)
 
 
 def _try_quick_fix(trace: RunTrace, it: Iteration, rep, data: dict, i: int, cost_bps: float,
-                   sandbox_timeout: float, emit) -> Iteration | None:
+                   sandbox_timeout: float, emit, pbo: bool = True) -> Iteration | None:
     """Run audit/quickfix.py on a failing iteration; on success append the patched iteration (clean)."""
     from audit.quickfix import public, quick_fix
 
@@ -102,6 +102,9 @@ def _try_quick_fix(trace: RunTrace, it: Iteration, rep, data: dict, i: int, cost
     if qf.get("status") != "fixed" or rep2 is None:
         return None
     new = Iteration(i + 1, qf["code"], source="quick_fix", quick_fix=public(qf) | {"code": None})
+    if pbo and rep2.clean:  # the Quick fix re-audit skips PBO for speed; add it for the accepted patch
+        from audit.leak_tests import evaluate_pbo
+        rep2.tests.append(evaluate_pbo(qf["code"], data, cost_bps=cost_bps, timeout=sandbox_timeout))
     rd = rep2.to_dict()
     new.tests, new.metrics, new.metrics_lag2 = rd["tests"], rd["metrics"], rd["metrics_lag2"]
     new.equity = [round(float(x), 6) for x in rep2.equity.to_numpy()]
@@ -116,7 +119,8 @@ def _try_quick_fix(trace: RunTrace, it: Iteration, rep, data: dict, i: int, cost
 
 def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost_bps: float = 10.0,
                    sandbox_timeout: float = 90.0, on_event: OnEvent | None = None,
-                   summarize: bool = True, initial_code: str | None = None, quick_fix: bool = True) -> RunTrace:
+                   summarize: bool = True, initial_code: str | None = None, quick_fix: bool = True,
+                   pbo: bool = True) -> RunTrace:
     """Run the Coder -> deterministic audit -> Auditor -> Coder loop.
 
     ``initial_code``: audit an existing strategy (e.g. pasted from a notebook) instead of asking the
@@ -126,13 +130,16 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
     patches for the localized line, each re-audited). If one passes every blocking test without going to cash, it
     becomes the next (final) iteration with ``source="quick_fix"`` and no LLM is called for the repair ($0).
     Otherwise the Auditor -> Coder path runs as before.
+
+    ``pbo``: add the Probability of Backtest Overfitting test (audit/pbo.py, non-blocking) to every iteration that
+    has no blocking failure.
     """
     emit = on_event or (lambda e: None)
     cfg = llm.config
     trace = RunTrace(hypothesis, bool(getattr(llm, "is_mock", False)),
                      {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")},
                      settings={"max_iters": max_iters, "cost_bps": cost_bps, "user_code": bool(initial_code),
-                               "quick_fix": bool(quick_fix),
+                               "quick_fix": bool(quick_fix), "pbo": bool(pbo),
                                "n_dates": int(len(data["close"])), "n_tickers": int(data["close"].shape[1])})
     prev_code, feedback, trial_sharpes = "", "", []
     last_audit_fb = ""            # the Auditor's latest leak diagnosis, kept across sandbox crashes
@@ -169,7 +176,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
             if violations:
                 raise SandboxError("Sandbox policy violation:\n" + "\n".join(violations))
             rep = run_audit(data, SandboxExecutor(code, sandbox_timeout), code, n_trials=i + 1,
-                            trial_sharpes=None, cost_bps=cost_bps)
+                            trial_sharpes=None, cost_bps=cost_bps, pbo=pbo, pbo_timeout=sandbox_timeout)
         except SandboxError as e:
             it.status, it.error = "error", str(e)
             it.audit_seconds = time.time() - t0
@@ -201,7 +208,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         # (it re-audits its patch, so it uses one iteration of the max_iters budget like a Coder rewrite)
         if quick_fix and code not in quick_fixed and audited < max_iters:
             quick_fixed.add(code)
-            fixed_it = _try_quick_fix(trace, it, rep, data, i, cost_bps, sandbox_timeout, emit)
+            fixed_it = _try_quick_fix(trace, it, rep, data, i, cost_bps, sandbox_timeout, emit, pbo)
             if fixed_it is not None:
                 audited += 1
                 break
