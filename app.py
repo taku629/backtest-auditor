@@ -534,7 +534,17 @@ def render_results(trace: dict, data: dict):
             render_pbo(final["tests"], key=f"rep_{final['index']}")
             with st.expander("Raw evidence (JSON)"):
                 st.json(final["tests"], expanded=False)
-        st.download_button("Download full trace (JSON)", RunTrace_json(trace), "backtest_auditor_trace.json",
+        from audit.report import report_from_trace
+        close = data["close"]
+        ddesc = f"{close.shape[1]} tickers, {len(close)} days, {close.index[0]:%Y-%m-%d}..{close.index[-1]:%Y-%m-%d}"
+        d1, d2, d3 = st.columns(3)
+        d1.download_button("Download audit report (HTML)", report_from_trace(trace, "html", ddesc),
+                           "backtest_audit_report.html", "text/html",
+                           help="Self-contained and printable: verdict, every test with evidence, leak line, fix "
+                                "diff, before/after metrics and equity curve (inline SVG), PBO/DSR, models and cost.")
+        d2.download_button("Download audit report (Markdown)", report_from_trace(trace, "md", ddesc),
+                           "backtest_audit_report.md", "text/markdown")
+        d3.download_button("Download full trace (JSON)", RunTrace_json(trace), "backtest_auditor_trace.json",
                            "application/json")
     with tab_diff:
         if len(its) >= 2:

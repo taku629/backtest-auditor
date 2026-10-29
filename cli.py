@@ -17,13 +17,15 @@ def main(argv=None) -> int:
     ap.add_argument("--max-iters", type=int, default=4)
     ap.add_argument("--cost-bps", type=float, default=10.0)
     ap.add_argument("--out", default="")
+    ap.add_argument("--report", default="", help="write a self-contained audit report (.html or .md)")
     ap.add_argument("--code", default="", help="path to a .py file with generate_signals(data) to audit first")
     a = ap.parse_args(argv)
 
     def show(e):
         t = e["type"]
         if t == "coder_done":
-            who = "user code" if e.get("user_code") else e["call"]["model"]
+            who = ("user code" if e.get("user_code") else "Quick fix, no LLM" if e.get("quick_fix")
+                   else (e.get("call") or {}).get("model", "?"))
             print(f"[{e['iteration'] + 1}] coder  ({who}) -> {len(e['code'].splitlines())} lines")
         elif t == "tests_done":
             fails = [f"{x['name']}({x['severity']})" for x in e["tests"] if not x["passed"]]
@@ -42,6 +44,12 @@ def main(argv=None) -> int:
         with open(a.out, "w") as f:
             f.write(trace.to_json(indent=1))
         print(f"trace written to {a.out}")
+    if a.report:
+        from audit.report import report_from_trace
+        fmt = "md" if a.report.lower().endswith((".md", ".markdown")) else "html"
+        with open(a.report, "w", encoding="utf-8") as f:
+            f.write(report_from_trace(trace.to_dict(), fmt))
+        print(f"audit report written to {a.report}")
     return 0 if trace.final_status == "clean" else 1
 
 

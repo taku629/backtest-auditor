@@ -102,6 +102,9 @@ class FileResult:
     raw: dict = field(default_factory=dict, repr=False)   # run_audit().to_dict() of the audited code
     code: str = ""                 # audited source (for .ipynb: the module extracted by notebook.py)
     notebook: dict = field(default_factory=dict)   # .ipynb only: cell_count, skipped, warnings, line_map
+    equity: dict = field(default_factory=dict, repr=False)       # {"dates", "values"} for --report
+    fix_equity: dict = field(default_factory=dict, repr=False)   # equity of the accepted Quick fix
+    fix_metrics: dict = field(default_factory=dict, repr=False)  # full metrics of the accepted Quick fix
 
     def cell_of(self, line: int) -> tuple[int, int] | None:
         """(cell, line in cell) for a line of the audited code when it came from a notebook."""
@@ -274,6 +277,7 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
         rd = rep.to_dict()
         res.tests, res.metrics = rd["tests"], rd["metrics"]
         res.raw = rd
+        res.equity = _equity_dict(rep.equity)
     except (SandboxError, RuntimeError, ValueError) as e:
         res.error = str(e)
         from audit.leak_tests import evaluate_static
@@ -302,6 +306,10 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
     _annotate_cells(res)
     res.seconds = time.time() - t0
     return res
+
+
+def _equity_dict(eq) -> dict:
+    return {"dates": [d.strftime("%Y-%m-%d") for d in eq.index], "values": [round(float(x), 6) for x in eq.to_numpy()]}
 
 
 def _annotate_cells(res: FileResult) -> None:
@@ -359,8 +367,12 @@ def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iter
     if quick and res.raw and (res.code or not res.notebook):
         from audit.quickfix import public, quick_fix
         code = res.code or path.read_text(encoding="utf-8")
-        qf = public(quick_fix(code, data, report=res.raw, seed=seed, n_cuts=n_cuts, cost_bps=cost_bps,
-                              timeout=timeout, name=path.name if not res.notebook else path.stem + ".py"))
+        qf_full = quick_fix(code, data, report=res.raw, seed=seed, n_cuts=n_cuts, cost_bps=cost_bps,
+                            timeout=timeout, name=path.name if not res.notebook else path.stem + ".py")
+        if qf_full.get("report") is not None:
+            res.fix_equity = _equity_dict(qf_full["report"].equity)
+            res.fix_metrics = dict(qf_full["report"].metrics)
+        qf = public(qf_full)
         res.quick_fix = qf
         if qf.get("status") == "fixed":
             res.fix_status = "quick_fix"
@@ -628,6 +640,18 @@ def render_sarif(results: list[FileResult], fail_on: str, data_desc: str) -> str
     return json.dumps(build_sarif(results, fail_on), indent=2, default=str) + "\n"
 
 
+def write_report(results: list[FileResult], path: str, data_desc: str) -> str:
+    """Self-contained audit report (audit/report.py): HTML unless the path ends in .md/.markdown."""
+    from audit.report import render_html, render_markdown, section_from_file_result
+    secs = [section_from_file_result(r) for r in results]
+    meta = {"data": data_desc, "version": TOOL_VERSION}
+    md = path.lower().endswith((".md", ".markdown"))
+    text = render_markdown(secs, meta) if md else render_html(secs, meta)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(text, encoding="utf-8")
+    return text
+
+
 RENDERERS = {"text": render_text, "markdown": render_markdown, "json": render_json, "sarif": render_sarif}
 
 
@@ -690,6 +714,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--param-grid", default="",
                     help="explicit PBO grid for UPPERCASE constants / generate_signals defaults, "
                          "e.g. 'LOOKBACK=10,20,40;TOP=0.8,0.9' (default: automatic 0.5x-2x grid)")
+    ap.add_argument("--report", default="",
+                    help="also write a self-contained audit report: .html (printable, inline SVG) or .md")
     ap.add_argument("--fix", action="store_true",
                     help="repair failing files: deterministic Quick fix first (prints a diff, no LLM), then the "
                          "Nemotron agent loop (needs NEBIUS_API_KEY) if no candidate passes")
@@ -742,6 +768,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.sarif_out:
         Path(a.sarif_out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.sarif_out).write_text(render_sarif(results, a.fail_on, data_desc), encoding="utf-8")
+
+    if a.report:
+        write_report(results, a.report, data_desc)
 
     in_gha = os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
     if a.annotations == "always" or (a.annotations == "auto" and in_gha):

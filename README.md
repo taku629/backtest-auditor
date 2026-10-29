@@ -125,11 +125,12 @@ they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shi
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 262 tests, fully offline
+pytest                                   # 267 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
 python cli.py --live --code examples/leaky_momentum.py   # audit your own strategy file
+python audit_cli.py examples/leaky_momentum.py --fix --no-llm --report audit.html   # printable audit report
 ```
 
 Environment variables: `NEBIUS_API_KEY`, `USE_MOCK`, `NEBIUS_BASE_URL`, `CODER_MODEL`, `AUDITOR_MODEL`, `SUMMARIZER_MODEL`, `MAX_LIVE_RUNS_PER_SESSION` (public demo budget, default 5).
@@ -226,6 +227,19 @@ a coin flip; that is what PBO reports. The unit tests check that a noise-mined g
 genuine signal score low. Caveat: the degradation slope comes out near −1 for every strategy (CSCV halves are
 complements of one sample), so it is shown but not used for the verdict.
 
+## Downloadable audit report
+
+One self-contained file to attach to a PR, send to a reviewer or print to PDF: verdict, every test with its
+evidence, the leak line highlighted in the code, the Quick fix or LLM diff, before/after metrics with the equity
+curve (inline SVG, no CDN, no JavaScript), PBO and DSR, models used with tokens and cost, a UTC timestamp and the
+SHA-256 of the audited (and final) code. In the app: **Download audit report (HTML / Markdown)** next to the JSON
+trace in the *Audit report* tab. Headless:
+
+```bash
+python audit_cli.py strategy.py --fix --no-llm --report audit.html   # or audit.md; several files -> one report
+python cli.py --code examples/leaky_momentum.py --report run.html     # full agent loop (mock unless --live)
+```
+
 ## Jupyter notebooks
 
 Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
@@ -239,6 +253,7 @@ python audit_cli.py "strategies/**/*.py"            # exit 1 on look-ahead / sur
 python audit_cli.py strategy.py --format sarif --out audit.sarif   # GitHub code scanning annotations
 python audit_cli.py strategy.py --fix               # Quick fix diff (no LLM); falls back to Nemotron with NEBIUS_API_KEY
 python audit_cli.py strategy.py --fix --write --no-llm   # write the deterministic patch to strategy.fixed.py
+python audit_cli.py strategy.py --report audit.html      # self-contained HTML (or .md) audit report
 ```
 
 GitHub Action: `uses: taku629/backtest-auditor@main` with `paths:` (annotates the offending lines in PRs, uploads SARIF).
@@ -258,14 +273,14 @@ app.py                 Streamlit UI
 cli.py                 headless loop
 agents/                config (model routing, pricing), LLM clients (Nebius + Mock), prompts, loop, canned drafts
 audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py, pbo.py,
-                       localize.py (dynamic leak line), quickfix.py (deterministic repair)
+                       localize.py (dynamic leak line), quickfix.py (deterministic repair), report.py (HTML/MD report)
 engine/backtester.py   causal daily backtester and metrics
 sandbox/               runner.py (policy + subprocess), _child.py (restricted executor)
 data/                  synthetic.py (seeded panel), loader.py (CSV)
 bench/                 LeakBench strategies, runner, results, Streamlit view
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (262 tests)
+tests/                 pytest suite (267 tests)
 ```
 
 ## Limitations
