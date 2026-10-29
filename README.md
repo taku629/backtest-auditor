@@ -125,7 +125,7 @@ they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shi
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 303 tests, fully offline
+pytest                                   # 315 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
@@ -180,21 +180,28 @@ lines the static scan flags) from general pandas rewrite rules: `shift(-k)` → 
 that consumes a forward target), centred → trailing window, `bfill`/`interpolate` → `ffill`, `rank()` →
 `rank(axis=1)` or an expanding rank, full-sample `mean/std/quantile` → `expanding()`, `sub(X.mean(), axis=1)` →
 cross-sectional demeaning, `resample('MS').last()` → `resample('ME')`, `transform('last')` → `'first'`, drop a
-time reversal, pooled `qcut` → per date, `dropna(axis=1)` → keep every ticker, and a last-resort `.shift(1)`.
+time reversal, pooled `qcut` → per date, `dropna(axis=1)` → keep every ticker, a universe picked from end-of-sample
+statistics (`close.iloc[-1] / close.iloc[-252]`, `volume.iloc[-60:].median()`, `close.count() >= N`,
+`close.columns[close.iloc[-1].notna()]`) → the same statistic as known on each date (shift / rolling / expanding) with
+its `nlargest(n).index`, `.loc[:, ~cols.isin(sel)] = …` and `X[sel]` consumers turned into date-wise masks,
+`np.polyfit(x, y, 1)` over the whole series → expanding least squares, and a last-resort `.shift(1)`.
 Each candidate is re-run through the **full** deterministic audit; the first one that passes every blocking test
 without going to cash (`non_trivial` passes, gross exposure ≥ 5%) is accepted and shown as a unified diff with
 Sharpe before/after. The agent loop tries it before calling the Coder and falls back to Nemotron when it fails.
 
 | Repair on the 24 leaky LeakBench strategies | Repaired | Changes on 15 clean | Cost per repair |
 |---|---|---|---|
-| ⚡ Quick fix (deterministic) | **19/24** (79%) | 0/15 (it only runs when a blocking test fails) | **$0** |
+| ⚡ Quick fix (deterministic) | **24/24** (100%) | 0/15 (it only runs when a blocking test fails) | **$0** |
 | Nemotron loop (`bench/REPAIR.md`) | 69/72 runs (96%) | not measured | $0.0072 |
 
-The 5 it declines are selection and regression leaks (universe chosen from the last row or last 60 days, a full-sample
-count filter, a per-ticker `polyfit`) that need a redesign rather than a one-line rewrite; the LLM repaired those in
-14/15 live runs, so Quick fix first, LLM second, would need an LLM call for only 5 of the 24. Held-out check: 10/10 extra leaky variants written after the rules (`bench/quickfix_holdout/`, same author).
+The last five (selection and regression leaks: L06, L13, L14, L15, L16) were 19/24 → 24/24 on 2026-10-30, with the
+point-in-time selection and expanding-fit rules written *after* seeing those five fail, so the 24/24 is in-sample.
+The selection rewrites change the strategy to its honest point-in-time version (e.g. "≥ 1,200 observations" becomes
+"≥ 1,200 observations so far", so L15's fix trades only the last ~300 days). Held-out check: 13/13 extra leaky
+variants (`bench/quickfix_holdout/`, same author; H11 and H13 led to two rule adjustments, see QUICKFIX.md) and
+0 changes on 3 clean ones. The Nemotron loop stays as the fallback for leaks outside the rule list.
 Caveat: the rules are general, not file-specific, but they were written by the LeakBench author with LeakBench in
-view, so treat 19/24 as an in-sample number. Details: [`bench/QUICKFIX.md`](bench/QUICKFIX.md)
+view. Details: [`bench/QUICKFIX.md`](bench/QUICKFIX.md)
 (`python -m bench.run_quickfix`, offline).
 
 ## Probability of Backtest Overfitting (PBO)
@@ -311,7 +318,7 @@ data/                  synthetic.py (seeded panel), loader.py (CSV)
 bench/                 LeakBench strategies, runner, results, Streamlit view
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (303 tests)
+tests/                 pytest suite (315 tests)
 ```
 
 ## Limitations

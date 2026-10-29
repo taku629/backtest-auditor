@@ -98,7 +98,10 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
          "static scan flags), generates candidate patches from a fixed list of general pandas rewrite rules "
          "(negative shift → positive, centred → trailing window, bfill → ffill, rank → rank(axis=1) or expanding "
          "rank, full-sample statistic → expanding, start-labelled resample → end-labelled, transform('last') → "
-         "'first', drop a time reversal, pooled quantile → per date, dropna(axis=1) → keep all tickers, and a "
+         "'first', drop a time reversal, pooled quantile → per date, dropna(axis=1) → keep all tickers, a universe "
+         "chosen from end-of-sample statistics (`iloc[-1]`, `iloc[-k:]`/`tail(k)` reductions, full-sample `count()`) "
+         "→ the same statistic as known on each date with its `nlargest`/`.loc[:, mask]`/`isin` consumers turned "
+         "into date-wise masks, `np.polyfit(x, y, 1)` over the whole series → expanding least squares, and a "
          "last-resort `.shift(1)` of the localized value), and re-runs the full deterministic audit on each. "
          "**Fixed** = the first candidate that passes every blocking test *and* is not over-corrected "
          "(`non_trivial` passes and mean gross exposure ≥ 5%, the repair benchmark's rule).", "",
@@ -116,7 +119,14 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
           "result, while the LLM numbers are over 3 sampled runs per strategy. Sharpe values below are from this "
           f"run (pandas {res.get('pandas', '?')}); a few leaky drafts score differently from `bench/REPAIR.md`, "
           "which was generated in another environment.", ""]
-    if llm:
+    if llm and len(fixed) == len(leaky):
+        L += [f"Combined (Quick fix first, LLM only when it fails): all {len(leaky)} leaky strategies are repaired by "
+              "the Quick fix for $0, so on LeakBench no LLM call is needed for the repair; the LLM Coder stays as the "
+              "fallback for leaks outside the rule list (and writes the strategy from a hypothesis in the first place).",
+              "", "The last five rules to land (L06, L13, L14, L15, L16: point-in-time selection and expanding fit) were "
+              "written on 2026-10-30 *after* seeing exactly these five fail, so the 24/24 is an in-sample number; "
+              "see the held-out section and the notes.", ""]
+    elif llm:
         rescued = [r for r in leaky if not r.get("fixed")]
         L += [f"Combined (Quick fix first, LLM only when it fails): {len(fixed)}/{len(leaky)} repaired for $0; the "
               f"remaining {len(rescued)} go to the LLM Coder, which repaired them in "
@@ -145,10 +155,7 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
                                                                          if a.get('blocking') else "")
                               for a in r.get("attempts", [])) or "no candidate generated"
             L.append(f"- **{r['id']}** ({r.get('bug')}): {tried}.")
-        L += ["", "These are selection and regression leaks (a universe chosen from the last row or last 60 days, "
-              "a count over the full sample, a per-ticker `np.polyfit` over the whole series). Fixing them "
-              "means redesigning the selection step point-in-time, which no local rewrite of one expression can do "
-              "without guessing intent, so the Quick fix declines and the loop hands over to the LLM.", ""]
+        L += [""]
     if hold:
         hf = [r for r in hold if r.get("fixed") and r["label"] == "leaky"]
         hl = [r for r in hold if r["label"] == "leaky"]
@@ -157,6 +164,12 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
               "same bug families in different shapes (keyword `periods=-k`, `interpolate()`, a `ewm` on a reversed "
               "frame, `X - X.median()`, `resample('QS').max()` ...), to check the rules are not tied to the LeakBench "
               f"files. Fixed: **{len(hf)}/{len(hl)}**.", "",
+              "H01–H10 were written after the first rule set. H11–H13 and HC3 were written after the point-in-time "
+              "selection and expanding-fit rules (2026-10-30), and two of them changed the rules: H11 was first "
+              "accepted with a meaningless cross-sectional rewrite of a `tail(252)` statistic (the full-sample rule "
+              "treated `tail(k)` like the whole history; it now skips `tail`/`head`, as it already skipped "
+              "`iloc[-k:]`), and H13 failed until the fit rule also matched `np.polyfit(..., deg=1)`. So H11 and "
+              "H13 are no longer strictly held out.", "",
               "| Strategy | Result | Rule | Sharpe before → after |", "|---|---|---|---|"]
         for r in hold:
             b, a = r.get("before") or {}, r.get("after") or {}
@@ -164,7 +177,7 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
             L.append(f"| `{r['id']}` | {r['status']} | {r.get('rule') or ''} | {b.get('sharpe', 0):.2f}{after} |")
         L.append("")
     L += ["## Example diffs", ""]
-    show = [r for r in fixed if r["id"][:3] in ("L17", "L19", "L21", "L22")] or fixed[:4]
+    show = [r for r in fixed if r["id"][:3] in ("L06", "L14", "L17", "L21")] or fixed[:4]
     for r in show:
         L += [f"`{r['id']}` ({r['rule']}):", "", "```diff", r["diff"].rstrip(), "```", ""]
     L += ["## Honest notes", "",
@@ -175,10 +188,15 @@ def write_md(res: dict, path: Path = OUT_MD) -> None:
           "- \"Fixed\" means the deterministic battery passes and the strategy still trades. It does not mean the "
           "patch is the economically best version: e.g. `rank(axis=0)` becomes an expanding time-series rank, "
           "`rank()` becomes a cross-sectional rank, a forward-return IC is lagged by its horizon. Review the diff.",
+          "- The selection rewrites change what the strategy is: a 'best last year' universe becomes the names that "
+          "were best over the trailing year *as of each date*, a 'last 60 days' liquidity screen becomes a rolling "
+          "60-day screen, and a 'at least 1,200 observations' filter becomes 'at least 1,200 observations so far', "
+          "so on a 1,512-day panel L15's fix only trades the last ~300 days (metrics start at the first trade). "
+          "The polyfit rewrite fits each point on data up to it (expanding OLS), so early residuals are noisy. "
+          "These are the honest point-in-time versions, not tuned ones.",
           "- Candidates are tried in a fixed order and the first passing one wins; a later candidate could give a "
           "different Sharpe.",
-          "- The per-date `pd.qcut` rewrite is a Python-level groupby and is slow (about a minute for the full audit "
-          "of L24 on 1,512 days).",
+          "- The per-date `pd.qcut` rewrite is a Python-level groupby and the slowest repair here (L24).",
           "- Clean strategies get no change because the Quick fix only runs when a blocking test fails; the rules "
           "never fire on passing code."]
     path.write_text("\n".join(L) + "\n", encoding="utf-8")

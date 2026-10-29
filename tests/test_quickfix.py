@@ -73,6 +73,54 @@ def test_forward_target_in_trailing_window_lags_the_estimate():
     assert any("ic = sig.rolling(60).corr(fwd).shift(1)" in c and "shift(-1)" in c for c in cands)
 
 
+def test_point_in_time_selection_rewrites():
+    code = _body("c = data['close']", "v = data['volume']", "listed = c.notna()",
+                 "perf = c.iloc[-1] / c.iloc[-252] - 1", "best = perf.nlargest(10).index",
+                 "adv = v.iloc[-60:].median()", "seasoned = c.count() >= 500", "alive = c.columns[c.iloc[-1].notna()]",
+                 "x = c.pct_change(5)", "x.loc[:, ~c.columns.isin(best)] = np.nan", "return x")
+    lines = generate_candidates(code, [9])[0].code.splitlines()
+    assert lines[8].strip() == "perf = c / c.shift(251) - 1"
+    assert lines[9].strip() == "best = perf.rank(axis=1, ascending=False, method='first') <= 10"
+    assert lines[14].strip() == "x = x.where(best, np.nan)"
+    assert generate_candidates(code, [11])[0].code.splitlines()[10].strip() == "adv = v.rolling(60).median()"
+    assert generate_candidates(code, [12])[0].code.splitlines()[11].strip() == "seasoned = c.expanding().count() >= 500"
+    assert generate_candidates(code, [13])[0].code.splitlines()[12].strip() == "alive = c.notna()"
+    # consumers: X[mask] and X.loc[:, mask] become date-wise .where(mask)
+    code2 = _body("c = data['close']", "alive = c.iloc[-1].notna()", "m = c.pct_change().loc[:, alive]",
+                  "k = c.tail(20).mean()", "top = k.nsmallest(3).index", "return m[top]")
+    new = generate_candidates(code2, [7])[0].code.splitlines()
+    assert new[6].strip() == "alive = c.notna()" and new[7].strip() == "m = c.pct_change().where(alive)"
+    new = generate_candidates(code2, [9])[0].code.splitlines()
+    assert new[8].strip() == "k = c.rolling(20).mean()" and new[10].strip() == "return m.where(top)"
+
+
+def test_full_sample_fit_rewrite_is_expanding_ols():
+    code = _body("c = data['close']", "x = np.arange(len(c), dtype=float)", "y = np.log(c.iloc[:, 0]).to_numpy()",
+                 "slope, icpt = np.polyfit(x, y, 1)", "coef = np.polyfit(x, y, deg=1)", "return y - (icpt + slope * x)")
+    for ln in (9, 10):
+        cand = generate_candidates(code, [ln])[0]
+        assert cand.rule == "full_sample_fit" and cand.lines == [ln]
+        assert cand.code.splitlines()[ln - 1].strip().endswith("_expanding_polyfit1(x, y)")
+        assert "def _expanding_polyfit1(x, y):" in cand.code
+    ns: dict = {}
+    exec(compile(generate_candidates(code, [9])[0].code, "<c>", "exec"), ns)  # noqa: S102 - our own code
+    xs = np.arange(50, dtype=float)
+    ys = np.r_[2 + 0.5 * xs[:30], 100 + 3 * xs[30:]]
+    b, a = ns["_expanding_polyfit1"](xs, ys)
+    for t in (5, 29, 49):   # each point's fit uses only data up to it (no look-ahead)
+        bb, aa = np.polyfit(xs[:t + 1], ys[:t + 1], 1)
+        assert np.isclose(b[t], bb) and np.isclose(a[t], aa)
+    assert np.isnan(b[0])
+
+
+def test_fit_helper_goes_above_an_adapter_wrapper():
+    from audit.adapters import WRAPPER_MARK
+    code = _body("c = data['close']", "x = np.arange(len(c), dtype=float)", "b, a = np.polyfit(x, x, 1)",
+                 "return c") + "\n\n" + WRAPPER_MARK + "\nimport bta_adapter\n"
+    new = generate_candidates(code, [8])[0].code
+    assert new.index("def _expanding_polyfit1") < new.index(WRAPPER_MARK)
+
+
 def test_candidates_keep_comments_and_are_deterministic():
     code = _body("c = data['close']  # prices", "# a comment", "x = c.shift(-1)", "return x")
     a = [c.code for c in generate_candidates(code, [8])]
@@ -82,8 +130,12 @@ def test_candidates_keep_comments_and_are_deterministic():
     assert d.startswith("--- a/s.py") and "-    x = c.shift(-1)" in d and "+    x = c.shift(1)" in d
 
 
+NO_RULE = _body("c = data['close']", "m = c.pct_change(20)", "thr = np.nanpercentile(m.to_numpy(), 90)",
+                "p = (m > thr).astype(float)", "return p.div(p.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)")
+
+
 def test_no_rule_no_candidate_without_fallback():
-    code = _body("c = data['close']", "keep = c.columns[c.iloc[-1].notna()]", "return c[keep]")
+    code = _body("c = data['close']", "thr = np.nanpercentile(c.to_numpy(), 90)", "return c > thr")
     assert generate_candidates(code, [7]) == []
     # the localized-line fallback still offers a one-bar lag
     assert [c.rule for c in generate_candidates(code, [7], fallback_lines=[7])] == ["lag_statement"]
@@ -152,10 +204,21 @@ def test_leakbench_static_blind_cases_are_fixed(panel, name, rule):
     assert qf["status"] == "fixed" and qf["rule"] == rule and qf["after"]["avg_gross"] >= 0.05
 
 
-def test_selection_leak_is_declined(panel):
-    code = (STRATS / "L13_alive_at_end.py").read_text()
-    qf = quick_fix(code, panel)
+def test_leak_without_a_rule_is_declined(panel):
+    qf = quick_fix(NO_RULE, panel)   # a pooled full-panel percentile threshold: no rewrite rule, lag fallback fails
     assert qf["status"] in ("failed", "no_candidate") and qf["code"] is None and qf["diff"] == ""
+
+
+@pytest.mark.parametrize("name, rule", [("L06_select_by_final_return", "point_in_time_selection"),
+                                        ("L13_alive_at_end", "point_in_time_selection"),
+                                        ("L14_polyfit_detrend", "full_sample_fit"),
+                                        ("L15_min_history_filter", "point_in_time_selection"),
+                                        ("L16_liquidity_by_recent_volume", "point_in_time_selection")])
+def test_leakbench_selection_and_regression_leaks_are_fixed(panel, name, rule):
+    code = (STRATS / f"{name}.py").read_text()
+    qf = quick_fix(code, panel)
+    assert qf["status"] == "fixed" and qf["rule"] == rule and qf["after"]["clean"]
+    assert qf["after"]["avg_gross"] >= 0.05 and qf["report"].clean
 
 
 # ---------------------------------------------------------------- loop wiring
@@ -187,9 +250,8 @@ def test_loop_falls_back_to_llm_when_no_candidate_passes(small_panel):
     from agents.llm import MockLLM
     from agents.loop import run_audit_loop
 
-    code = (STRATS / "L13_alive_at_end.py").read_text()
-    tr = run_audit_loop("momentum among currently tradable stocks", small_panel, MockLLM(), max_iters=2,
-                        summarize=False, initial_code=code)
+    tr = run_audit_loop("momentum above a percentile threshold", small_panel, MockLLM(), max_iters=2,
+                        summarize=False, initial_code=NO_RULE)
     first = tr.iterations[0]
     assert first.quick_fix.get("status") in ("failed", "no_candidate")
     assert any(c["step"] == "diagnose" for c in tr.calls)       # the LLM path ran
@@ -203,6 +265,9 @@ def test_quickfix_results_file_is_consistent():
     leaky = [r for r in rows if r["label"] == "leaky" and not r["holdout"]]
     clean = [r for r in rows if r["label"] == "clean" and not r["holdout"]]
     assert len(leaky) == 24 and len(clean) == 15
+    assert sum(r["fixed"] for r in leaky) == 24
+    hold = [r for r in rows if r["holdout"]]
+    assert all(r["status"] == "not_needed" for r in hold if r["label"] == "clean")
     assert all(r["status"] == "not_needed" and not r["changed"] for r in clean)
     for r in leaky:
         if r["fixed"]:

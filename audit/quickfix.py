@@ -30,6 +30,13 @@ pooled_quantile             ``pd.qcut(stacked, ..)`` -> per date ``stacked.group
                             ``X.stack().groupby(level=1).quantile(q)`` -> ``X.expanding().quantile(q)``
 survivor_universe           ``X.dropna(axis=1)`` -> ``X``
 future_bar_index            backtrader ``self.data.close[1]`` (next bar) -> ``[0]``; ``.get(ago=k)`` -> ``ago=0``
+point_in_time_selection     a universe from end-of-sample statistics -> the statistic as known on each date:
+                            ``X.iloc[-1]`` -> ``X``, ``X.iloc[-k]`` -> ``X.shift(k-1)``, ``X.iloc[-k:].f()`` /
+                            ``X.tail(k).f()`` -> ``X.rolling(k).f()``, ``X.count()`` -> ``X.expanding().count()``;
+                            consumers: ``S.nlargest(n).index`` -> per-date rank mask, ``X.columns[mask]`` -> mask,
+                            ``X.loc[:, ~cols.isin(sel)] = v`` -> ``X = X.where(sel, v)``, ``X[sel]`` /
+                            ``X.loc[:, sel]`` -> ``X.where(sel)``
+full_sample_fit             ``np.polyfit(x, y, 1)`` -> expanding least squares (helper appended to the module)
 lag_statement (fallback)    ``v = <expr>`` -> ``v = (<expr>).shift(1)`` on the localized line
 ==========================  ===================================================================================
 
@@ -80,8 +87,11 @@ def _apply(code: str, edits: list[tuple[ast.AST, str]]) -> str:
     """Replace each node's source span with text. Overlapping edits: the outermost wins (inner ones dropped)."""
     b = code.encode("utf-8")
     offs = _offsets(code)
-    spans = []
+    spans, suffix = [], ""
     for node, text in edits:
+        if node is None:            # text appended at the end of the module (keeps every line number)
+            suffix += text
+            continue
         s = offs[node.lineno - 1] + node.col_offset
         e = offs[node.end_lineno - 1] + node.end_col_offset
         spans.append((s, e, text))
@@ -93,7 +103,14 @@ def _apply(code: str, edits: list[tuple[ast.AST, str]]) -> str:
             last_end = e
     for s, e, t in reversed(kept):
         b = b[:s] + t.encode("utf-8") + b[e:]
-    return b.decode("utf-8")
+    out = b.decode("utf-8")
+    if not suffix:
+        return out
+    from audit.adapters import WRAPPER_MARK   # keep helpers above an adapter wrapper (stripped from fixes)
+    i = out.find("\n\n" + WRAPPER_MARK)
+    if i >= 0:
+        return out[:i].rstrip("\n") + "\n" + suffix + out[i:]
+    return out.rstrip("\n") + "\n" + suffix
 
 
 def _src(node: ast.AST) -> str:
@@ -268,6 +285,8 @@ def _is_time_reducer(n) -> bool:
     base = n.func.value
     # x.iloc[-1] / x.iloc[-k:] are row selections; their reductions are not fixed by expanding()
     if isinstance(base, ast.Subscript):
+        return False
+    if _call(base) and base.func.attr in ("tail", "head"):   # x.tail(k) is a row selection too
         return False
     return True
 
@@ -502,8 +521,271 @@ def _gen_lag(tree, stmt, ctx):
     return []
 
 
+# ----------------------------------------------------------------------------
+# Point-in-time selection: a per-ticker Series computed from the END of the sample (last row, last k rows,
+# full-sample count) used as a universe filter for every date -> the same statistic as a dates x tickers
+# frame known on each date, and its consumers turned into date-wise masks.
+# ----------------------------------------------------------------------------
+def _neg_int(node) -> int | None:
+    """k for a constant -k (k >= 1), else None."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant) \
+            and isinstance(node.operand.value, int) and not isinstance(node.operand.value, bool) \
+            and node.operand.value >= 1:
+        return node.operand.value
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool) \
+            and node.value <= -1:
+        return -node.value
+    return None
+
+
+def _iloc_of(node):
+    """(frame, slice) for ``frame.iloc[slice]``, else None."""
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute) and node.value.attr == "iloc":
+        return node.value.value, node.slice
+    return None
+
+
+def _a(value, attr):
+    return ast.Attribute(value, attr, ast.Load())
+
+
+def _c(func, args=(), kws=None):
+    return ast.Call(func, list(args), [ast.keyword(k, v) for k, v in (kws or {}).items()])
+
+
+def _rank_mask(series, n, largest: bool):
+    """frame.rank(axis=1, ascending=not largest, method='first') <= n : the n largest/smallest names per date."""
+    r = _c(_a(series, "rank"), kws={"axis": ast.Constant(1), "ascending": ast.Constant(not largest),
+                                    "method": ast.Constant("first")})
+    return ast.Compare(r, [ast.LtE()], [n])
+
+
+class _PointInTime(ast.NodeTransformer):
+    """End-of-sample statistics -> statistics as of each date (the result is a dates x tickers frame)."""
+
+    def __init__(self, frames: set[str]):
+        self.frames = frames      # names already known to hold a date-wise frame
+        self.changed = False
+        self.masked = False       # produced a date-wise selection mask (nlargest / columns[...])
+
+    def _is_frame(self, node) -> bool:
+        if getattr(node, "_pit", False):
+            return True
+        return isinstance(node, ast.Name) and node.id in self.frames
+
+    def _mark(self, node):
+        node._pit = True
+        self.changed = True
+        return node
+
+    def visit_Call(self, node):
+        # reductions over a trailing row slice: X.iloc[-k:].median() / X.tail(k).mean() -> X.rolling(k).median()
+        if _call(node) and node.func.attr in REDUCERS | {"sum", "count"} and not node.args \
+                and _axis_of(node) in ("absent",) + ROW_AXIS:
+            base, k = node.func.value, None
+            il = _iloc_of(base)
+            if il and isinstance(il[1], ast.Slice) and il[1].upper is None and il[1].step is None:
+                k = _neg_int(il[1].lower)
+                frame = il[0] if k else None
+            elif _call(base) and base.func.attr == "tail" and base.args and isinstance(_const(base.args[0]), int):
+                k, frame = _const(base.args[0]), base.func.value
+            if k:
+                frame = self.visit(frame)
+                roll = _c(_a(frame, "rolling"), [ast.Constant(k)])
+                return self._mark(_c(_a(roll, node.func.attr)))
+            # full-sample count of observations -> observations so far
+            if node.func.attr == "count" and not node.keywords and not isinstance(base, ast.Subscript):
+                chain = _chain_names(base)
+                if not any(c in WINDOWED for c in chain):
+                    return self._mark(_c(_a(_c(_a(self.visit(base), "expanding")), "count")))
+        self.generic_visit(node)
+        # S.nlargest(n) / S.nsmallest(n) on a date-wise frame -> boolean mask of the n best names per date
+        if _call(node) and node.func.attr in ("nlargest", "nsmallest") and node.args \
+                and self._is_frame(node.func.value):
+            self.masked = True
+            return self._mark(_rank_mask(node.func.value, node.args[0], node.func.attr == "nlargest"))
+        if _call(node) and node.func.attr in ("notna", "notnull", "isna", "isnull", "abs", "fillna") \
+                and self._is_frame(node.func.value):
+            return self._mark(node)
+        return node
+
+    def visit_Subscript(self, node):
+        il = _iloc_of(node)
+        if il and not isinstance(il[1], (ast.Slice, ast.Tuple)):
+            k = _neg_int(il[1])
+            if k:   # X.iloc[-1] -> X (value on each date); X.iloc[-k] -> X.shift(k - 1)
+                frame = self.visit(il[0])
+                return self._mark(frame if k == 1 else _c(_a(frame, "shift"), [ast.Constant(k - 1)]))
+        self.generic_visit(node)
+        # X.columns[mask] with a date-wise mask -> the mask itself
+        if isinstance(node.value, ast.Attribute) and node.value.attr == "columns" and self._is_frame(node.slice):
+            self.masked = True
+            return self._mark(node.slice)
+        return node
+
+    def visit_Attribute(self, node):
+        self.generic_visit(node)
+        # mask.index after nlargest -> keep the mask (consumers take a frame)
+        if node.attr == "index" and self._is_frame(node.value) and isinstance(node.value, ast.Compare):
+            return self._mark(node.value)
+        return node
+
+    def visit_BinOp(self, node):
+        self.generic_visit(node)
+        if self._is_frame(node.left) or self._is_frame(node.right):
+            node._pit = True
+        return node
+
+    def visit_Compare(self, node):
+        self.generic_visit(node)
+        if self._is_frame(node.left) or any(self._is_frame(c) for c in node.comparators):
+            node._pit = True
+        return node
+
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+        if self._is_frame(node.operand):
+            node._pit = True
+        return node
+
+
+def _isin_mask(node, frames: set[str]):
+    """(mask name, negated) for ``[~]X.columns.isin(v)`` or ``[~]v`` with v a date-wise frame, else None."""
+    neg = False
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Invert):
+        neg, node = True, node.operand
+    if _call(node) and node.func.attr == "isin" and isinstance(node.func.value, ast.Attribute) \
+            and node.func.value.attr == "columns" and len(node.args) == 1 and isinstance(node.args[0], ast.Name) \
+            and node.args[0].id in frames:
+        return node.args[0].id, neg
+    if isinstance(node, ast.Name) and node.id in frames:
+        return node.id, neg
+    return None
+
+
+class _MaskConsumers(ast.NodeTransformer):
+    """Uses of a (now date-wise) selection: X.loc[:, ~cols.isin(v)] -> X.where(v); X[v] -> X.where(v)."""
+
+    def __init__(self, frames: set[str]):
+        self.frames = frames
+        self.changed = False
+
+    def visit_Subscript(self, node):
+        self.generic_visit(node)
+        if not isinstance(node.ctx, ast.Load):
+            return node
+        if isinstance(node.value, ast.Attribute) and node.value.attr == "loc" and isinstance(node.slice, ast.Tuple) \
+                and len(node.slice.elts) == 2 and isinstance(node.slice.elts[0], ast.Slice):
+            m = _isin_mask(node.slice.elts[1], self.frames)
+            if m:
+                self.changed = True
+                mask = ast.Name(m[0], ast.Load())
+                return _c(_a(node.value.value, "where"), [ast.UnaryOp(ast.Invert(), mask) if m[1] else mask])
+        if isinstance(node.slice, ast.Name) and node.slice.id in self.frames:
+            self.changed = True
+            return _c(_a(node.value, "where"), [node.slice])
+        return node
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        m = _isin_mask(node, self.frames) if _call(node) and node.func.attr == "isin" else None
+        if m and not m[1]:
+            self.changed = True
+            return ast.Name(m[0], ast.Load())
+        return node
+
+
+def _masked_assign(stmt, frames: set[str]) -> str | None:
+    """``X.loc[:, [~]cols.isin(v)] = V`` -> ``X = X.where(v, V)`` / ``X = X.mask(v, V)``."""
+    if not (isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Subscript)):
+        return None
+    t = stmt.targets[0]
+    if not (isinstance(t.value, ast.Attribute) and t.value.attr == "loc" and isinstance(t.slice, ast.Tuple)
+            and len(t.slice.elts) == 2 and isinstance(t.slice.elts[0], ast.Slice)):
+        return None
+    m = _isin_mask(t.slice.elts[1], frames)
+    if not m:
+        return None
+    x = _src(t.value.value)
+    return f"{x} = {x}.{'where' if m[1] else 'mask'}({m[0]}, {_src(stmt.value)})"
+
+
+def _gen_point_in_time(tree, stmt, ctx):
+    if not (isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name)):
+        return []
+    pit = _PointInTime(set())
+    new = pit.visit(copy.deepcopy(stmt.value))
+    if not pit.changed:
+        return []
+    edits = [(stmt.value, _src(new))]
+    frames = {stmt.targets[0].id}
+    for s2 in sorted(_statements(tree), key=lambda s: s.lineno):
+        if s2.lineno <= stmt.end_lineno:
+            continue
+        loads = {n.id for n in ast.walk(s2) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        if not loads & frames:
+            continue
+        ma = _masked_assign(s2, frames)
+        if ma:
+            edits.append((s2, ma))
+            continue
+        if isinstance(s2, ast.Assign) and len(s2.targets) == 1 and isinstance(s2.targets[0], ast.Name):
+            p2 = _PointInTime(frames)
+            v2 = p2.visit(copy.deepcopy(s2.value))
+            mc = _MaskConsumers(frames)
+            v2 = mc.visit(v2)
+            if p2.changed or mc.changed:
+                edits.append((s2.value, _src(v2)))
+            if p2.masked or not mc.changed:   # derived from the date-wise statistic: also date-wise now
+                frames.add(s2.targets[0].id)
+        else:
+            mc = _MaskConsumers(frames)
+            v2 = mc.visit(copy.deepcopy(s2))
+            if mc.changed:
+                edits.append((s2, _src(v2)))
+    return [("point_in_time_selection", "universe chosen from end-of-sample statistics -> the same statistic as "
+                                        "known on each date (rolling / expanding), applied date by date", edits)]
+
+
+# ----------------------------------------------------------------------------
+# Full-sample linear fit: np.polyfit(x, y, 1) -> expanding OLS (each point is fitted only on data up to it)
+# ----------------------------------------------------------------------------
+EXPANDING_POLYFIT_HELPER = '''
+
+def _expanding_polyfit1(x, y):
+    """Backtest Auditor Quick fix: degree-1 least squares fitted on data up to each point (no look-ahead).
+    Returns (slope, intercept) arrays aligned with x; the first point has no fit (NaN)."""
+    import numpy as _np
+    x = _np.asarray(x, dtype=float)
+    y = _np.asarray(y, dtype=float)
+    n = _np.arange(1, len(x) + 1, dtype=float)
+    mx, my = _np.cumsum(x) / n, _np.cumsum(y) / n
+    var = _np.cumsum(x * x) / n - mx ** 2
+    with _np.errstate(divide="ignore", invalid="ignore"):
+        slope = _np.where(var > 1e-12, (_np.cumsum(x * y) / n - mx * my) / var, _np.nan)
+    return slope, my - slope * mx
+'''
+
+
+def _gen_full_sample_fit(tree, stmt, ctx):
+    ed = []
+    for n in _nodes_in(stmt):
+        if not (isinstance(n, ast.Call) and ((isinstance(n.func, ast.Attribute) and n.func.attr == "polyfit")
+                                             or (isinstance(n.func, ast.Name) and n.func.id == "polyfit"))):
+            continue
+        deg = n.args[2] if len(n.args) >= 3 else _kw(n, "deg")
+        extra = [k for k in n.keywords if k.arg != "deg"]
+        if len(n.args) >= 2 and len(n.args) <= 3 and _const(deg) == 1 and not extra:
+            ed.append((n, f"_expanding_polyfit1({_src(n.args[0])}, {_src(n.args[1])})"))
+    if not ed or "_expanding_polyfit1" in ctx.get("code", ""):
+        return []
+    return [("full_sample_fit", "linear fit over the whole sample -> expanding fit (each point fitted only on "
+                                "data up to it)", ed + [(None, EXPANDING_POLYFIT_HELPER)])]
+
+
 GENERATORS = [_gen_negative_period, _gen_centered, _gen_backfill, _gen_reversed, _gen_period_transform,
-              _gen_resample, _gen_pooled, _gen_rank, _gen_full_sample, _gen_survivor, _gen_future_bar]
+              _gen_resample, _gen_pooled, _gen_rank, _gen_full_sample, _gen_survivor, _gen_future_bar,
+              _gen_point_in_time, _gen_full_sample_fit]
 
 
 def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int] | None = None,
@@ -512,7 +794,7 @@ def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int
     tree = ast.parse(code)
     assigns = _assignments(tree)
     stacked = {k for k, a in assigns.items() if _pooled_panel(a.value, set())}
-    ctx = {"assigns": assigns, "stacked": stacked, "min_periods": min_periods}
+    ctx = {"assigns": assigns, "stacked": stacked, "min_periods": min_periods, "code": code}
     per_line: list[list[tuple]] = []
     seen_stmts = set()
     for ln in lines:
@@ -537,7 +819,7 @@ def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int
             return
         if new not in seen:
             seen.add(new)
-            out.append(Candidate(rule, desc, new, sorted({n.lineno for n, _ in edits})))
+            out.append(Candidate(rule, desc, new, sorted({n.lineno for n, _ in edits if n is not None})))
 
     # several flagged lines (independent leaks usually need all of them fixed): try the best option of each
     # together first, so a multi-leak draft costs one sandboxed audit instead of one per single-line patch
