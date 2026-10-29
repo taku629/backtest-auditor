@@ -243,16 +243,31 @@ def test_no_annotations_outside_actions(capsys):
 def test_fix_without_api_key_is_skipped(tmp_path, capsys):
     p = tmp_path / "leaky.py"
     p.write_text(LEAKY.read_text())
-    assert audit_cli.main([str(p), "--fix", "--format", "json"]) == 1
+    assert audit_cli.main([str(p), "--fix", "--no-quickfix", "--format", "json"]) == 1
     cap = capsys.readouterr()
     assert json.loads(cap.out)["files"][0]["fix_status"] == "skipped_no_api_key"
     assert "NEBIUS_API_KEY" in cap.err and not (tmp_path / "leaky.fixed.py").exists()
 
 
+def test_fix_quick_fix_needs_no_api_key(tmp_path, capsys):
+    p = tmp_path / "leaky.py"
+    p.write_text(LEAKY.read_text())
+    assert audit_cli.main([str(p), "--fix", "--format", "json"]) == 1      # the original still fails
+    f = json.loads(capsys.readouterr().out)["files"][0]
+    assert f["fix_status"] == "quick_fix" and f["quick_fix"]["status"] == "fixed"
+    assert "+++ b/leaky.py" in f["quick_fix"]["diff"] and f["quick_fix"]["cost_usd"] == 0.0
+    assert not (tmp_path / "leaky.fixed.py").exists()                     # only with --write
+    assert audit_cli.main([str(p), "--fix", "--write", "--no-llm"]) == 1
+    out = capsys.readouterr().out
+    assert "Quick fix (no LLM" in out and "-    mom = " in out
+    fixed = tmp_path / "leaky.fixed.py"
+    assert fixed.exists() and audit_cli.main([str(fixed), "--fail-on", "high"]) == 0
+
+
 def test_fix_with_mock_llm_writes_clean_candidate(tmp_path, capsys):
     p = tmp_path / "leaky.py"
     p.write_text(LEAKY.read_text())
-    assert audit_cli.main([str(p), "--fix", "--mock-llm", "--format", "json"]) == 1   # original still fails
+    assert audit_cli.main([str(p), "--fix", "--no-quickfix", "--mock-llm", "--format", "json"]) == 1
     f = json.loads(capsys.readouterr().out)["files"][0]
     fixed = tmp_path / "leaky.fixed.py"
     assert f["fix_status"] == "clean" and fixed.exists()

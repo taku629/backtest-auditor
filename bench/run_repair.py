@@ -255,7 +255,7 @@ def run_one(strategy: dict, cond: str, data: dict, llm: CachedBudgetLLM, max_ite
     try:
         with condition(cond):
             tr = run_audit_loop(hyp, data, llm, max_iters=max_iters, summarize=False,
-                                initial_code=strategy["stripped"])
+                                initial_code=strategy["stripped"], quick_fix=False)  # LLM repair only
     except BudgetExceeded as e:
         return rec | {"status": "skipped_budget", "error": str(e), "fresh_cost_usd": round(llm.tag.fresh, 6)}
     except Exception as e:  # noqa: BLE001 - an API failure is recorded, never hidden

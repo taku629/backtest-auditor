@@ -13,7 +13,8 @@ python audit_cli.py strategies/*.py                       # text report, exit 1 
 python audit_cli.py "strategies/**/*.py" --fail-on warning # stricter: medium findings fail too
 python audit_cli.py strat.py --format sarif --out results.sarif
 python audit_cli.py strat.py --data csv:prices.csv         # long CSV: date,ticker,close[,open,high,low,volume]
-python audit_cli.py strat.py --fix                         # + Nemotron repair -> strat.fixed.py (needs NEBIUS_API_KEY)
+python audit_cli.py strat.py --fix                         # ⚡ Quick fix diff (no LLM); Nemotron fallback with NEBIUS_API_KEY
+python audit_cli.py strat.py --fix --write --no-llm        # write the deterministic patch to strat.fixed.py, never call an LLM
 ```
 
 | Option | Default | Meaning |
@@ -25,7 +26,9 @@ python audit_cli.py strat.py --fix                         # + Nemotron repair -
 | `--out` / `--sarif-out` | stdout / none | write the report / an extra SARIF file |
 | `--annotations` | `auto` | `::error file=..,line=..::` lines when `GITHUB_ACTIONS=true` |
 | `--seed`, `--n-cuts`, `--cost-bps`, `--timeout` | 7, 6, 10, 90 | audit settings |
-| `--fix` | off | runs `agents/loop.py` on the file and writes `<name>.fixed.py`; skipped with a warning when `NEBIUS_API_KEY` is unset (`--mock-llm` = offline demo) |
+| `--fix` | off | first the deterministic Quick fix (`audit/quickfix.py`): candidate patches of the localized leak line, each re-audited; prints the unified diff (no LLM, $0). If none passes, runs `agents/loop.py` and writes `<name>.fixed.py`; that LLM step is skipped with a warning when `NEBIUS_API_KEY` is unset (`--mock-llm` = offline demo) |
+| `--write` | off | with `--fix`: also write the Quick fix to `<name>.fixed.py` |
+| `--no-quickfix` / `--no-llm` | off | with `--fix`: LLM only / Quick fix only |
 
 Exit codes: `0` passed, `1` a test at or above `--fail-on` failed (or the file could not run in the sandbox), `2` usage error.
 Offending line numbers come from the AST scan; dynamic failures are linked to the static findings that can cause them.
@@ -140,7 +143,8 @@ Annotations look like this in the log and on the PR diff:
 `.github/workflows/example-audit.yml` in this repo runs the action on `examples/*.py` and expects the
 deliberately leaky example to fail, and runs it on a point-in-time momentum strategy that must pass at `fail-on: warning`.
 
-To propose fixes in CI, add `extra-args: --fix` and `env: NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}`;
+To propose fixes in CI, add `extra-args: --fix --write` (deterministic, no key needed), plus
+`env: NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}` for the LLM fallback;
 upload the `*.fixed.py` files as artifacts. The verdict on the original file is still deterministic.
 
 ## pre-commit

@@ -199,6 +199,10 @@ with st.sidebar:
     st.caption(f"Endpoint: `{cfg.base_url}`")
     st.subheader("Loop")
     max_iters = st.slider("Max iterations", 1, 6, 4)
+    use_quick_fix = st.checkbox("⚡ Try Quick fix first (no LLM)", value=True,
+                                help="When a draft fails, first try deterministic patches of the localized leak line "
+                                     "(e.g. shift(-1) → shift(1), bfill → ffill, rank() → rank(axis=1)), each re-audited. "
+                                     "If one passes every blocking test without going to cash, no LLM is called ($0).")
     cost_bps = st.slider("Transaction cost (bps per unit turnover)", 0, 50, 10)
     pacing = st.slider("Demo pacing (mock latency, s)", 0.0, 2.0, 0.6, 0.1, disabled=live)
     st.subheader("Data")
@@ -232,7 +236,7 @@ st.markdown("""<div class="steps">
 <div class="step"><b>1 · Write</b><span>Nemotron 3 Super turns your idea into <code>generate_signals(data)</code>, or you paste your own.</span></div>
 <div class="step"><b>2 · Attack</b><span>Sandboxed run, then the future is scrambled, dead stocks revived, execution delayed, code scanned.</span></div>
 <div class="step"><b>3 · Diagnose</b><span>Nemotron 3 Ultra reads the failing evidence and pins each bug to a line.</span></div>
-<div class="step"><b>4 · Repeat</b><span>Loop until no critical/high test fails. The LLM proposes; the numbers decide.</span></div>
+<div class="step"><b>4 · Repair</b><span>⚡ Quick fix patches the leak line with no LLM when a rule fits; otherwise Nemotron rewrites. Loop until no critical/high test fails.</span></div>
 </div>""", unsafe_allow_html=True)
 
 DATA_FOR_CHARTS = data
@@ -314,7 +318,8 @@ def render_iteration(it: dict, models: dict, expanded: bool):
     else:
         badge = f'<span class="pill pill-fail">{len(blocking)} blocking failure(s)</span>'
     label = "Draft" if it["index"] == 0 else "Fix"
-    author = "you (pasted)" if it.get("user_code") else short_model(models["coder"])
+    author = ("you (pasted)" if it.get("user_code") else
+              "⚡ Quick fix (deterministic, no LLM)" if it.get("source") == "quick_fix" else short_model(models["coder"]))
     with st.container(border=True):
         st.markdown(f"**Iteration {it['index'] + 1} · {label}** &nbsp; {badge} &nbsp; "
                     f'<span class="subtle">code by</span> <span class="model-tag">{author}</span>',
@@ -351,9 +356,34 @@ def render_iteration(it: dict, models: dict, expanded: bool):
                         st.caption("Leak proof: for each cut date, every price after it was scrambled. "
                                    "Red = signals *before* the cut changed anyway, so the strategy reads the future.")
                         st.plotly_chart(fig, width="stretch", key=f"lp_{id(it)}_{it['index']}_{np.random.randint(1e9)}")
+        qf = it.get("quick_fix") or {}
+        if it.get("source") == "quick_fix" and qf:
+            st.markdown(f"⚡ **Quick fix** · `{qf.get('rule')}` on line {', '.join(map(str, qf.get('lines') or []))}: "
+                        f"{qf.get('description')} · $0, no LLM call")
+        elif qf.get("status") in ("failed", "no_candidate", "error"):
+            st.caption(f"⚡ Quick fix: {qf.get('n_candidates', 0)} deterministic candidate(s), none passed the audit "
+                       "without going to cash → handed to the LLM.")
         if it.get("auditor_feedback"):
             with st.expander(f"Auditor diagnosis · {short_model(models['auditor'])}", expanded=expanded):
                 st.markdown(it["auditor_feedback"])
+
+
+def render_quick_fix(it: dict):
+    """The deterministic repair: diff + before/after Sharpe, no LLM involved."""
+    qf = it.get("quick_fix") or {}
+    b, a = qf.get("before") or {}, qf.get("after") or {}
+    with st.container(border=True):
+        st.markdown("### ⚡ Quick fix (no LLM)")
+        st.markdown(f"Rule `{qf.get('rule')}` · line {', '.join(map(str, qf.get('lines') or []))} · "
+                    f"{qf.get('description')}. Each candidate patch was re-run through the full deterministic audit; "
+                    f"this one passes every blocking test and still trades. "
+                    f"Tried {sum(1 for x in qf.get('attempts', []))} of {qf.get('n_candidates', 0)} candidate(s).")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Sharpe before", f"{b.get('sharpe', float('nan')):.2f}")
+        c2.metric("Sharpe after", f"{a.get('sharpe', float('nan')):.2f}",
+                  delta=f"{a.get('sharpe', 0) - b.get('sharpe', 0):+.2f}")
+        c3.metric("LLM cost of the repair", "$0.00")
+        st.code(qf.get("diff") or "", language="diff")
 
 
 def equity_chart(trace: dict, data: dict) -> go.Figure:
@@ -417,6 +447,10 @@ def render_results(trace: dict, data: dict):
                          unsafe_allow_html=True)
         cols[3].markdown(f'<div class="verdict"><div class="lab">First leaking date</div><div class="big">'
                          f'{str(leak_d)[:10] if leak_d else "–"}</div></div>', unsafe_allow_html=True)
+
+    qf_it = next((i for i in its if i.get("source") == "quick_fix"), None)
+    if qf_it is not None:
+        render_quick_fix(qf_it)
 
     st.subheader("Before vs after the audit")
     st.plotly_chart(equity_chart(trace, data), width="stretch")
@@ -498,9 +532,17 @@ with tab_audit:
             t = e["type"]
             if t == "coder_start":
                 status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({short_model(e['model'])}) is writing code…")
+            elif t == "quickfix_start":
+                status.update(label=f"Iteration {e['iteration'] + 1}: ⚡ trying deterministic Quick fix (no LLM)…")
+            elif t == "quickfix_done":
+                if state["iterations"]:
+                    state["iterations"][-1]["quick_fix"] = e.get("quick_fix") or {}
             elif t == "coder_done":
                 state["iterations"].append({"index": e["iteration"], "code": e["code"], "status": "pending", "tests": [],
-                                            "user_code": bool(e.get("user_code"))})
+                                            "user_code": bool(e.get("user_code")),
+                                            "source": "quick_fix" if e.get("quick_fix") else "coder"})
+                if e.get("quick_fix") and len(state["iterations"]) >= 2:
+                    state["iterations"][-1]["quick_fix"] = state["iterations"][-2].get("quick_fix") or {}
                 status.update(label=f"Iteration {e['iteration'] + 1}: running sandbox + deterministic audit…")
             elif t == "tests_done":
                 it = state["iterations"][-1]
@@ -517,7 +559,8 @@ with tab_audit:
 
         try:
             trace: RunTrace = run_audit_loop(hyp.strip(), data, llm, max_iters=max_iters, cost_bps=float(cost_bps),
-                                             on_event=on_event, initial_code=(user_code or None))
+                                             on_event=on_event, initial_code=(user_code or None),
+                                             quick_fix=use_quick_fix)
             status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
                           state="complete" if trace.final_status == "clean" else "error", expanded=False)
             st.session_state["trace"] = trace.to_dict()

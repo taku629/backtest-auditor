@@ -8,7 +8,7 @@ from agents.loop import run_audit_loop
 def test_momentum_loop_converges(panel):
     events = []
     tr = run_audit_loop("Buy top-decile 20-day momentum, rebalance weekly", panel, MockLLM(),
-                        max_iters=4, on_event=events.append)
+                        max_iters=4, on_event=events.append, quick_fix=False)   # LLM repair path
     assert tr.final_status == "clean"
     assert len(tr.iterations) == 3
     first, last = tr.iterations[0], tr.iterations[-1]
@@ -30,6 +30,8 @@ def test_other_scenarios_converge(panel):
     for hyp in ("Mean reversion: buy names furthest below their moving average",
                 "Low volatility: hold the least volatile names, monthly"):
         tr = run_audit_loop(hyp, panel, MockLLM(), max_iters=4, summarize=False)
+        assert tr.final_status == "clean" and len(tr.iterations) == 2
+        tr = run_audit_loop(hyp, panel, MockLLM(), max_iters=4, summarize=False, quick_fix=False)
         assert tr.final_status == "clean" and len(tr.iterations) == 2
 
 

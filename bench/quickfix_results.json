@@ -1,0 +1,2120 @@
+{
+ "benchmark": "quickfix",
+ "generated_at": "2026-10-29 10:07 UTC",
+ "data": {
+  "n_tickers": 50,
+  "n_dates": 1512
+ },
+ "llm_calls": 0,
+ "cost_usd": 0.0,
+ "rows": [
+  {
+   "id": "L01_shift_minus_one",
+   "label": "leaky",
+   "bug": "negative_shift",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "negative_period",
+   "description": "negative period -> positive (look back instead of ahead)",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "negative_period",
+     "description": "negative period -> positive (look back instead of ahead)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.5967,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "static_scan",
+     "execution_delay"
+    ],
+    "sharpe": 4.1186,
+    "cagr": 1.6746,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.5967,
+    "cagr": 0.1248,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L01_shift_minus_one.py\n+++ b/L01_shift_minus_one.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(20)\n     # Align the signal with the bar it will be traded on.\n-    mom = mom.shift(-1)\n+    mom = mom.shift(1)\n     rank = mom.where(listed).rank(axis=1, pct=True)\n     pick = ((rank >= 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 6.3,
+   "quickfix_seconds": 2.18,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L02_centred_rolling",
+   "label": "leaky",
+   "bug": "centred_window",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "centered_window",
+   "description": "centred rolling window -> trailing window",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "centered_window",
+     "description": "centred rolling window -> trailing window",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.6782,
+     "avg_gross": 0.9995,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "sharpe": 8.8941,
+    "cagr": 8.0113,
+    "avg_gross": 0.9996
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.6782,
+    "cagr": -0.1792,
+    "avg_gross": 0.9995
+   },
+   "diff": "--- a/L02_centred_rolling.py\n+++ b/L02_centred_rolling.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Centred window: a smoother, lag-free estimate of fair value.\n-    fair = close.rolling(21, center=True, min_periods=5).mean()\n+    fair = close.rolling(21, min_periods=5).mean()\n     gap = (close / fair - 1).where(listed)\n     rank = gap.rank(axis=1, ascending=True)\n     pick = ((rank <= 8) & listed).astype(float)\n",
+   "seconds": 6.5,
+   "quickfix_seconds": 2.5,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L03_bfill_prices",
+   "label": "leaky",
+   "bug": "backward_fill",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "backward_fill",
+   "description": "backward fill / interpolation -> forward fill",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "backward_fill",
+     "description": "backward fill / interpolation -> forward fill",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.0294,
+     "avg_gross": 0.9965,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "sharpe": 0.9836,
+    "cagr": 0.2349,
+    "avg_gross": 0.9948
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0294,
+    "cagr": 0.2497,
+    "avg_gross": 0.9965
+   },
+   "diff": "--- a/L03_bfill_prices.py\n+++ b/L03_bfill_prices.py\n@@ -6,7 +6,7 @@\n     \"\"\"60-day momentum, long the top 10, with gap-free prices.\"\"\"\n     close = data[\"close\"]\n     # Fill holes in the price history so the 60-day return is always defined.\n-    px = close.bfill()\n+    px = close.ffill()\n     mom = px / px.shift(60) - 1\n     rank = mom.rank(axis=1, ascending=False)\n     pick = (rank <= 10).astype(float)\n",
+   "seconds": 7.8,
+   "quickfix_seconds": 2.96,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L04_fullsample_zscore",
+   "label": "leaky",
+   "bug": "full_sample_normalisation",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "full_sample_statistic",
+   "description": "full-sample statistic -> expanding (point-in-time) statistic",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "full_sample_statistic",
+     "description": "full-sample statistic -> expanding (point-in-time) statistic",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.9439,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.6157,
+    "cagr": 0.1275,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9439,
+    "cagr": 0.2229,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L04_fullsample_zscore.py\n+++ b/L04_fullsample_zscore.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(40)\n     # Standardise each stock's momentum so every name is on the same scale.\n-    z = (mom - mom.mean()) / mom.std()\n+    z = (mom - mom.expanding(min_periods=20).mean()) / mom.expanding(min_periods=20).std()\n     rank = z.where(listed).rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 7.1,
+   "quickfix_seconds": 2.27,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L05_dropna_universe",
+   "label": "leaky",
+   "bug": "survivor_universe",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "survivor_universe",
+   "description": "drop dropna(axis=1): keep every ticker, point-in-time",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "survivor_universe",
+     "description": "drop dropna(axis=1): keep every ticker, point-in-time",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.4374,
+     "avg_gross": 0.5605,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "sharpe": 0.8786,
+    "cagr": 0.1815,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.4374,
+    "cagr": 0.0535,
+    "avg_gross": 0.5605
+   },
+   "diff": "--- a/L05_dropna_universe.py\n+++ b/L05_dropna_universe.py\n@@ -6,7 +6,7 @@\n     \"\"\"Low-volatility: hold the 10 least volatile names (60-day vol), monthly rebalance.\"\"\"\n     close = data[\"close\"]\n     # Work on a clean universe of names with full data.\n-    clean = close.dropna(axis=1)\n+    clean = close\n     vol = clean.pct_change().rolling(60).std()\n     rank = vol.rank(axis=1, ascending=True)\n     pick = (rank <= 10).astype(float)\n",
+   "seconds": 5.5,
+   "quickfix_seconds": 2.02,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L06_select_by_final_return",
+   "label": "leaky",
+   "bug": "selection_on_future_performance",
+   "holdout": false,
+   "status": "failed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": 10,
+   "n_candidates": 1,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "lag_statement",
+     "description": "lag the localized value by one bar (.shift(1))",
+     "result": "still_failing",
+     "blocking": [
+      "future_perturbation"
+     ],
+     "sharpe": 0.8211,
+     "avg_gross": 0.9932,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 0.7826,
+    "cagr": 0.1839,
+    "avg_gross": 0.9891
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 6.3,
+   "quickfix_seconds": 2.54,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L07_time_rank_full_history",
+   "label": "leaky",
+   "bug": "time_series_rank_full_sample",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "time_axis_rank",
+   "description": "rank against the full history -> rank against the history so far (expanding)",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "time_axis_rank",
+     "description": "rank against the full history -> rank against the history so far (expanding)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.2294,
+     "avg_gross": 0.9647,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": -0.0485,
+    "cagr": -0.0454,
+    "avg_gross": 0.9584
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.2294,
+    "cagr": 0.0261,
+    "avg_gross": 0.9647
+   },
+   "diff": "--- a/L07_time_rank_full_history.py\n+++ b/L07_time_rank_full_history.py\n@@ -8,6 +8,6 @@\n     listed = close.notna()\n     mom = close.pct_change(20)\n     # Percentile of today's momentum within each stock's own history.\n-    pctl = mom.rank(axis=0, pct=True)\n+    pctl = mom.expanding(min_periods=20).rank(pct=True)\n     pick = ((pctl > 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 8.4,
+   "quickfix_seconds": 3.38,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L08_reverse_cummax",
+   "label": "leaky",
+   "bug": "reversed_cumulative",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "reversed_time_window",
+   "description": "remove the time reversal around the window (trailing, oldest-first)",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "reversed_time_window",
+     "description": "remove the time reversal around the window (trailing, oldest-first)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.3086,
+     "avg_gross": 0.9995,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 1.9739,
+    "cagr": 0.6182,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.3086,
+    "cagr": -0.1,
+    "avg_gross": 0.9995
+   },
+   "diff": "--- a/L08_reverse_cummax.py\n+++ b/L08_reverse_cummax.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Running peak of each price series.\n-    peak = close.iloc[::-1].cummax().iloc[::-1]\n+    peak = close.cummax()\n     discount = (close / peak - 1).where(listed)\n     rank = discount.rank(axis=1, ascending=True)\n     pick = ((rank <= 10) & listed).astype(float)\n",
+   "seconds": 8.2,
+   "quickfix_seconds": 3.08,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L09_weekly_resample_bfill",
+   "label": "leaky",
+   "bug": "resample_backfill",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "backward_fill",
+   "description": "backward fill / interpolation -> forward fill",
+   "patched_lines": [
+    15
+   ],
+   "localized_line": 15,
+   "n_candidates": 1,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "backward_fill",
+     "description": "backward fill / interpolation -> forward fill",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.9392,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "static_scan"
+    ],
+    "sharpe": 5.6313,
+    "cagr": 3.5781,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9392,
+    "cagr": 0.2399,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L09_weekly_resample_bfill.py\n+++ b/L09_weekly_resample_bfill.py\n@@ -12,4 +12,4 @@\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     # One portfolio per week, spread over the trading days of that week.\n     weekly = w.resample(\"W-FRI\").last()\n-    return weekly.reindex(close.index, method=\"bfill\").fillna(0.0)\n+    return weekly.reindex(close.index, method='ffill').fillna(0.0)\n",
+   "seconds": 8.2,
+   "quickfix_seconds": 3.05,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L10_reversed_expanding_vol",
+   "label": "leaky",
+   "bug": "reversed_expanding",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "reversed_time_window",
+   "description": "remove the time reversal around the window (trailing, oldest-first)",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "reversed_time_window",
+     "description": "remove the time reversal around the window (trailing, oldest-first)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.6783,
+     "avg_gross": 0.9999,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": -0.0774,
+    "cagr": -0.0382,
+    "avg_gross": 0.9596
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.6783,
+    "cagr": 0.1303,
+    "avg_gross": 0.9999
+   },
+   "diff": "--- a/L10_reversed_expanding_vol.py\n+++ b/L10_reversed_expanding_vol.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     ret = close.pct_change()\n     # Expanding window is more stable than a short rolling window.\n-    vol = ret.iloc[::-1].expanding(min_periods=60).std().iloc[::-1]\n+    vol = ret.expanding(min_periods=60).std()\n     vol = vol.where(listed)\n     rank = vol.rank(axis=1, ascending=True)\n     inv = (1.0 / vol).where(rank <= 25)\n",
+   "seconds": 9.5,
+   "quickfix_seconds": 3.51,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L11_groupby_quantile_threshold",
+   "label": "leaky",
+   "bug": "full_sample_quantile_threshold",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "pooled_quantile",
+   "description": "per-ticker full-sample threshold -> expanding per-ticker threshold",
+   "patched_lines": [
+    12
+   ],
+   "localized_line": 12,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "pooled_quantile",
+     "description": "per-ticker full-sample threshold -> expanding per-ticker threshold",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.2441,
+     "avg_gross": 0.9647,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": -0.0485,
+    "cagr": -0.0454,
+    "avg_gross": 0.9584
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.2441,
+    "cagr": 0.0301,
+    "avg_gross": 0.9647
+   },
+   "diff": "--- a/L11_groupby_quantile_threshold.py\n+++ b/L11_groupby_quantile_threshold.py\n@@ -9,7 +9,7 @@\n     mom = close.pct_change(20)\n     long = mom.stack()\n     # Each stock's own breakout level.\n-    level = long.groupby(level=1).quantile(0.8)\n+    level = mom.expanding(min_periods=20).quantile(0.8)\n     on = mom.gt(level, axis=1) & listed\n     pick = on.astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 10.7,
+   "quickfix_seconds": 4.47,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L12_helper_hidden_shift",
+   "label": "leaky",
+   "bug": "hidden_negative_shift_in_helper",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "negative_period",
+   "description": "negative period -> positive (look back instead of ahead)",
+   "patched_lines": [
+    7
+   ],
+   "localized_line": 7,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "negative_period",
+     "description": "negative period -> positive (look back instead of ahead)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.028,
+     "avg_gross": 0.9999,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "execution_delay"
+    ],
+    "sharpe": 7.3478,
+    "cagr": 4.8253,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.028,
+    "cagr": -0.0375,
+    "avg_gross": 0.9999
+   },
+   "diff": "--- a/L12_helper_hidden_shift.py\n+++ b/L12_helper_hidden_shift.py\n@@ -4,7 +4,7 @@\n \n def to_trade_date(df, lag=1):\n     \"\"\"Move each signal to the bar on which it is executed (the engine trades one bar later).\"\"\"\n-    return df.shift(-lag)\n+    return df.shift(lag)\n \n \n def generate_signals(data):\n",
+   "seconds": 10.0,
+   "quickfix_seconds": 4.14,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L13_alive_at_end",
+   "label": "leaky",
+   "bug": "survivor_universe_last_row",
+   "holdout": false,
+   "status": "failed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": 9,
+   "n_candidates": 1,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "lag_statement",
+     "description": "lag the localized value by one bar (.shift(1))",
+     "result": "error",
+     "blocking": null,
+     "sharpe": null,
+     "avg_gross": null,
+     "error": "SandboxError: NotImplementedError: This method is only implemented for DatetimeIndex, PeriodIndex and TimedeltaIndex; Got type Index (strategy line 9: tradable = close.columns[close.iloc[-1].notna()].shift(1))"
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 1.2917,
+    "cagr": 0.333,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 8.3,
+   "quickfix_seconds": 2.37,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L14_polyfit_detrend",
+   "label": "leaky",
+   "bug": "full_sample_regression",
+   "holdout": false,
+   "status": "no_candidate",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": 15,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 1.2605,
+    "cagr": 0.326,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 11.0,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L15_min_history_filter",
+   "label": "leaky",
+   "bug": "survivor_universe_count_filter",
+   "holdout": false,
+   "status": "failed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": 10,
+   "n_candidates": 1,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "lag_statement",
+     "description": "lag the localized value by one bar (.shift(1))",
+     "result": "error",
+     "blocking": null,
+     "sharpe": null,
+     "avg_gross": null,
+     "error": "SandboxError: ValueError: Cannot mask with non-boolean array containing NA / NaN values (strategy line 12: vol = vol.loc[:, seasoned].where(listed))"
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.644,
+    "cagr": 0.1235,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 8.2,
+   "quickfix_seconds": 2.27,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L16_liquidity_by_recent_volume",
+   "label": "leaky",
+   "bug": "selection_on_future_volume",
+   "holdout": false,
+   "status": "failed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": 10,
+   "n_candidates": 1,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "lag_statement",
+     "description": "lag the localized value by one bar (.shift(1))",
+     "result": "still_failing",
+     "blocking": [
+      "future_perturbation"
+     ],
+     "sharpe": -0.6607,
+     "avg_gross": 0.9993,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": -0.3703,
+    "cagr": -0.1278,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 10.1,
+   "quickfix_seconds": 3.7,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L17_rank_default_axis",
+   "label": "leaky",
+   "bug": "pandas_default_axis_rank",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "time_axis_rank",
+   "description": "rank over the time axis -> rank across tickers on each date (axis=1)",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "time_axis_rank",
+     "description": "rank over the time axis -> rank across tickers on each date (axis=1)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.7241,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": -0.0186,
+    "cagr": -0.0375,
+    "avg_gross": 0.9457
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7241,
+    "cagr": 0.1611,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L17_rank_default_axis.py\n+++ b/L17_rank_default_axis.py\n@@ -7,6 +7,6 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(20).where(listed)\n-    pctl = mom.rank(pct=True)\n+    pctl = mom.rank(axis=1, pct=True)\n     pick = ((pctl >= 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 8.5,
+   "quickfix_seconds": 3.36,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L18_sub_mean_axis_trap",
+   "label": "leaky",
+   "bug": "pandas_default_axis_mean",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "time_axis_demean",
+   "description": "per-ticker full-sample demeaning -> cross-sectional (per date)",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "time_axis_demean",
+     "description": "per-ticker full-sample demeaning -> cross-sectional (per date)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.0318,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.76,
+    "cagr": 0.1685,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0318,
+    "cagr": 0.2508,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L18_sub_mean_axis_trap.py\n+++ b/L18_sub_mean_axis_trap.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(60).where(listed)\n     # Remove the common component before ranking.\n-    demeaned = mom.sub(mom.mean(), axis=1)\n+    demeaned = mom.sub(mom.mean(axis=1), axis=0)\n     rank = demeaned.rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 9.7,
+   "quickfix_seconds": 3.78,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L19_resample_ms_last",
+   "label": "leaky",
+   "bug": "resample_label_mismatch",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "resample_start_label",
+   "description": "start-labelled resample -> end-labelled bins",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "resample_start_label",
+     "description": "start-labelled resample -> end-labelled bins",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.0721,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 3.8559,
+    "cagr": 1.5176,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0721,
+    "cagr": 0.2648,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L19_resample_ms_last.py\n+++ b/L19_resample_ms_last.py\n@@ -6,7 +6,7 @@\n     \"\"\"Monthly 3-month momentum: long the top 10 names, rebalanced monthly.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    monthly = close.resample(\"MS\").last()\n+    monthly = close.resample('ME').last()\n     mom = monthly / monthly.shift(3) - 1\n     rank = mom.rank(axis=1, ascending=False)\n     pick = (rank <= 10).astype(float)\n",
+   "seconds": 8.8,
+   "quickfix_seconds": 3.21,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L20_groupby_transform_last",
+   "label": "leaky",
+   "bug": "groupby_transform_last",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "period_transform",
+   "description": "per-period aggregate broadcast to every day -> value known on the period's first day (transform('first'))",
+   "patched_lines": [
+    15
+   ],
+   "localized_line": 15,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "period_transform",
+     "description": "per-period aggregate broadcast to every day -> value known on the period's first day (transform('first'))",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.7035,
+     "avg_gross": 0.9995,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 0.8148,
+    "cagr": 0.1465,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7035,
+    "cagr": 0.1326,
+    "avg_gross": 0.9995
+   },
+   "diff": "--- a/L20_groupby_transform_last.py\n+++ b/L20_groupby_transform_last.py\n@@ -12,5 +12,5 @@\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     month = close.index.to_period(\"M\")\n     # Hold a single portfolio for the whole month.\n-    w = w.groupby(month).transform(\"last\")\n+    w = w.groupby(month).transform('first')\n     return w.where(listed, 0.0)\n",
+   "seconds": 9.3,
+   "quickfix_seconds": 3.78,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L21_trailing_ic_forward_return",
+   "label": "leaky",
+   "bug": "target_leak_in_trailing_ic",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "negative_period",
+   "description": "forward target in a trailing estimate -> lag the estimate by the horizon (1)",
+   "patched_lines": [
+    12
+   ],
+   "localized_line": 11,
+   "n_candidates": 4,
+   "n_tried": 2,
+   "attempts": [
+    {
+     "rule": "negative_period",
+     "description": "negative period -> positive (look back instead of ahead)",
+     "result": "still_failing",
+     "blocking": [
+      "non_trivial"
+     ],
+     "sharpe": 0.0,
+     "avg_gross": 0.0,
+     "error": null
+    },
+    {
+     "rule": "negative_period",
+     "description": "forward target in a trailing estimate -> lag the estimate by the horizon (1)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.2567,
+     "avg_gross": 0.9998,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "static_scan"
+    ],
+    "sharpe": 0.1683,
+    "cagr": 0.0112,
+    "avg_gross": 0.9998
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.2567,
+    "cagr": -0.0908,
+    "avg_gross": 0.9998
+   },
+   "diff": "--- a/L21_trailing_ic_forward_return.py\n+++ b/L21_trailing_ic_forward_return.py\n@@ -9,7 +9,7 @@\n     ret = close.pct_change()\n     sig = -close.pct_change(5)\n     fwd = ret.shift(-1)                       # the return each signal is meant to predict\n-    ic = sig.rolling(120, min_periods=60).corr(fwd)   # trailing 120-day information coefficient\n+    ic = sig.rolling(120, min_periods=60).corr(fwd).shift(1)   # trailing 120-day information coefficient\n     score = sig.where((ic > 0) & listed)\n     rank = score.rank(axis=1, ascending=False)\n     pick = ((rank <= 8) & listed).astype(float)\n",
+   "seconds": 13.7,
+   "quickfix_seconds": 7.44,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L22_descending_sort_rolling",
+   "label": "leaky",
+   "bug": "reversed_index_rolling",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "reversed_time_window",
+   "description": "remove the time reversal around the window (trailing, oldest-first)",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 10,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "reversed_time_window",
+     "description": "remove the time reversal around the window (trailing, oldest-first)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.6727,
+     "avg_gross": 0.9995,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 10.259,
+    "cagr": 11.7172,
+    "avg_gross": 0.9881
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.6727,
+    "cagr": -0.1778,
+    "avg_gross": 0.9995
+   },
+   "diff": "--- a/L22_descending_sort_rolling.py\n+++ b/L22_descending_sort_rolling.py\n@@ -6,7 +6,7 @@\n     \"\"\"Buy the 8 names furthest below their 20-day moving average.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    recent_first = close.sort_index(ascending=False)\n+    recent_first = close\n     ma = recent_first.rolling(20, min_periods=20).mean().sort_index()\n     gap = (close / ma - 1).where(listed)\n     rank = gap.rank(axis=1, ascending=True)\n",
+   "seconds": 9.6,
+   "quickfix_seconds": 3.27,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L23_fillna_full_mean",
+   "label": "leaky",
+   "bug": "imputation_with_full_sample_mean",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "full_sample_statistic",
+   "description": "full-sample statistic -> expanding (point-in-time) statistic",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "full_sample_statistic",
+     "description": "full-sample statistic -> expanding (point-in-time) statistic",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.0318,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 0.9597,
+    "cagr": 0.2278,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0318,
+    "cagr": 0.2508,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L23_fillna_full_mean.py\n+++ b/L23_fillna_full_mean.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(60)\n-    mom = mom.fillna(mom.mean()).where(listed)\n+    mom = mom.fillna(mom.expanding(min_periods=20).mean()).where(listed)\n     rank = mom.rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 9.0,
+   "quickfix_seconds": 3.33,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "L24_pooled_qcut",
+   "label": "leaky",
+   "bug": "pooled_quantile_breakpoints",
+   "holdout": false,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "pooled_quantile",
+   "description": "pooled quantile breakpoints -> breakpoints per date",
+   "patched_lines": [
+    11
+   ],
+   "localized_line": 11,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "pooled_quantile",
+     "description": "pooled quantile breakpoints -> breakpoints per date",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.7487,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.3254,
+    "cagr": 0.0522,
+    "avg_gross": 0.9517
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7487,
+    "cagr": 0.1683,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/L24_pooled_qcut.py\n+++ b/L24_pooled_qcut.py\n@@ -8,6 +8,6 @@\n     listed = close.notna()\n     mom = close.pct_change(20).where(listed)\n     long = mom.stack()\n-    bucket = pd.qcut(long, 5, labels=False).unstack().reindex(index=close.index, columns=close.columns)\n+    bucket = long.groupby(level=0).transform(lambda _s: pd.qcut(_s, 5, labels=False)).unstack().reindex(index=close.index, columns=close.columns)\n     pick = ((bucket == 4) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 61.4,
+   "quickfix_seconds": 54.52,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C01_momentum_12_1",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.1912,
+    "cagr": 0.324,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.5,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C02_same_bar_reversal",
+   "label": "clean",
+   "bug": "none (same-bar disguise)",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -1.7946,
+    "cagr": -0.3828,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.1,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C03_low_vol",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.629,
+    "cagr": 0.114,
+    "avg_gross": 0.9999
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.3,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C04_ma_crossover",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9473,
+    "cagr": 0.2163,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.3,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C05_vol_target",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0126,
+    "cagr": 0.1093,
+    "avg_gross": 0.4541
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C06_expanding_zscore",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9768,
+    "cagr": 0.2353,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.6,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C07_ffill_rolling",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.6727,
+    "cagr": -0.1778,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.4,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C08_cross_sectional_zscore",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.1064,
+    "cagr": 0.0727,
+    "avg_gross": 0.9997
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.6,
+   "quickfix_seconds": 0.01,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C09_weekly_resample_ffill",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9392,
+    "cagr": 0.2399,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C10_monthly_first_transform",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7035,
+    "cagr": 0.1326,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.5,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C11_scary_named_helper",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9319,
+    "cagr": 0.2111,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.2,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C12_month_end_calendar_shift",
+   "label": "clean",
+   "bug": "none (calendar look-ahead is legitimate)",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.2588,
+    "cagr": 0.348,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C13_transpose_rank",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7241,
+    "cagr": 0.1611,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C14_trailing_ic_lagged",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.2567,
+    "cagr": -0.0908,
+    "avg_gross": 0.9998
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 4.3,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C15_resample_me_last",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0721,
+    "cagr": 0.2648,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.2,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H01_shift_keyword",
+   "label": "leaky",
+   "bug": "negative_shift_keyword",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "negative_period",
+   "description": "negative period -> positive (look back instead of ahead)",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "negative_period",
+     "description": "negative period -> positive (look back instead of ahead)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.2508,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "static_scan",
+     "execution_delay"
+    ],
+    "sharpe": 8.0256,
+    "cagr": 5.7497,
+    "avg_gross": 0.9993
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.2508,
+    "cagr": 0.032,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H01_shift_keyword.py\n+++ b/H01_shift_keyword.py\n@@ -6,7 +6,7 @@\n     \"\"\"10-day momentum, long the top 12 names.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    sig = close.pct_change(periods=10).shift(periods=-2)\n+    sig = close.pct_change(periods=10).shift(periods=2)\n     order = sig.where(listed).rank(axis=1, ascending=False)\n     pick = ((order <= 12) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 7.2,
+   "quickfix_seconds": 2.43,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H02_interpolate",
+   "label": "leaky",
+   "bug": "interpolation",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "backward_fill",
+   "description": "backward fill / interpolation -> forward fill",
+   "patched_lines": [
+    8
+   ],
+   "localized_line": 8,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "backward_fill",
+     "description": "backward fill / interpolation -> forward fill",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.9759,
+     "avg_gross": 0.9872,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": 0.9759,
+    "cagr": 0.2307,
+    "avg_gross": 0.9872
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9759,
+    "cagr": 0.2307,
+    "avg_gross": 0.9872
+   },
+   "diff": "--- a/H02_interpolate.py\n+++ b/H02_interpolate.py\n@@ -5,7 +5,7 @@\n def generate_signals(data):\n     \"\"\"40-day momentum on gap-free prices, top 10.\"\"\"\n     close = data[\"close\"]\n-    smooth = close.interpolate()\n+    smooth = close.ffill()\n     mom = smooth.pct_change(40)\n     order = mom.rank(axis=1, ascending=False)\n     pick = (order <= 10).astype(float)\n",
+   "seconds": 7.2,
+   "quickfix_seconds": 3.17,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H03_reversed_ewm",
+   "label": "leaky",
+   "bug": "reversed_ewm",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "reversed_time_window",
+   "description": "remove the time reversal around the window (trailing, oldest-first)",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "reversed_time_window",
+     "description": "remove the time reversal around the window (trailing, oldest-first)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.3714,
+     "avg_gross": 0.9999,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.4103,
+    "cagr": 0.0584,
+    "avg_gross": 0.9809
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.3714,
+    "cagr": 0.0577,
+    "avg_gross": 0.9999
+   },
+   "diff": "--- a/H03_reversed_ewm.py\n+++ b/H03_reversed_ewm.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     ret = close.pct_change()\n-    vol = ret[::-1].ewm(span=30, min_periods=30).std()[::-1].where(listed)\n+    vol = ret.ewm(span=30, min_periods=30).std().where(listed)\n     calm = vol.rank(axis=1) <= 20\n     inv = (1.0 / vol).where(calm)\n     return inv.div(inv.sum(axis=1), axis=0).fillna(0.0)\n",
+   "seconds": 6.7,
+   "quickfix_seconds": 2.38,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H04_minus_median",
+   "label": "leaky",
+   "bug": "full_sample_median",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "full_sample_statistic",
+   "description": "full-sample statistic -> expanding (point-in-time) statistic",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "full_sample_statistic",
+     "description": "full-sample statistic -> expanding (point-in-time) statistic",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.7251,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": 0.8213,
+    "cagr": 0.1858,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7251,
+    "cagr": 0.1616,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H04_minus_median.py\n+++ b/H04_minus_median.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(30)\n-    excess = mom - mom.median()\n+    excess = mom - mom.expanding(min_periods=20).median()\n     order = excess.where(listed).rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 7.0,
+   "quickfix_seconds": 2.71,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H05_resample_qs_max",
+   "label": "leaky",
+   "bug": "resample_start_label",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "resample_start_label",
+   "description": "start-labelled resample -> end-labelled bins",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 4,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "resample_start_label",
+     "description": "start-labelled resample -> end-labelled bins",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.1485,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "sharpe": -4.6863,
+    "cagr": -0.6704,
+    "avg_gross": 0.9992
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.1485,
+    "cagr": 0.284,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H05_resample_qs_max.py\n+++ b/H05_resample_qs_max.py\n@@ -6,7 +6,7 @@\n     \"\"\"Buy the 10 names closest to their quarterly high.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    qhigh = close.resample(\"QS\").max().reindex(close.index, method=\"ffill\")\n+    qhigh = close.resample('QE').max().reindex(close.index, method=\"ffill\")\n     near = (close / qhigh).where(listed)\n     order = near.rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n",
+   "seconds": 5.9,
+   "quickfix_seconds": 2.22,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H06_centred_keyword",
+   "label": "leaky",
+   "bug": "centred_window",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "centered_window",
+   "description": "centred rolling window -> trailing window",
+   "patched_lines": [
+    9
+   ],
+   "localized_line": 9,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "centered_window",
+     "description": "centred rolling window -> trailing window",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.4938,
+     "avg_gross": 0.9998,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "sharpe": 0.454,
+    "cagr": 0.0677,
+    "avg_gross": 0.9997
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.4938,
+    "cagr": 0.0848,
+    "avg_gross": 0.9998
+   },
+   "diff": "--- a/H06_centred_keyword.py\n+++ b/H06_centred_keyword.py\n@@ -6,7 +6,7 @@\n     \"\"\"Low volatility, 12 names.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    vol = close.pct_change().rolling(window=30, center=True, min_periods=10).std()\n+    vol = close.pct_change().rolling(window=30, min_periods=10).std()\n     order = vol.where(listed).rank(axis=1)\n     pick = ((order <= 12) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 6.9,
+   "quickfix_seconds": 2.94,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H07_rank_no_axis",
+   "label": "leaky",
+   "bug": "pandas_default_axis_rank",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "time_axis_rank",
+   "description": "rank over the time axis -> rank across tickers on each date (axis=1)",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 3,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "time_axis_rank",
+     "description": "rank over the time axis -> rank across tickers on each date (axis=1)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 1.0318,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation"
+    ],
+    "sharpe": -1.3595,
+    "cagr": -0.2088,
+    "avg_gross": 0.216
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0318,
+    "cagr": 0.2508,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H07_rank_no_axis.py\n+++ b/H07_rank_no_axis.py\n@@ -7,6 +7,6 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     score = close.pct_change(60).where(listed)\n-    order = score.rank(ascending=False)\n+    order = score.rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
+   "seconds": 6.7,
+   "quickfix_seconds": 2.26,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H08_forward_hit_rate",
+   "label": "leaky",
+   "bug": "target_leak_in_trailing_hit_rate",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "negative_period",
+   "description": "negative period -> positive (look back instead of ahead)",
+   "patched_lines": [
+    10
+   ],
+   "localized_line": 10,
+   "n_candidates": 4,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "negative_period",
+     "description": "negative period -> positive (look back instead of ahead)",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": -0.5573,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "static_scan"
+    ],
+    "sharpe": 0.524,
+    "cagr": 0.1037,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.5573,
+    "cagr": -0.1542,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H08_forward_hit_rate.py\n+++ b/H08_forward_hit_rate.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     sig = -close.pct_change(5)\n-    fwd5 = close.pct_change(5).shift(-5)\n+    fwd5 = close.pct_change(5).shift(5)\n     hit = (np.sign(sig) * fwd5).rolling(60, min_periods=40).mean()\n     order = sig.where((hit > 0) & listed).rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n",
+   "seconds": 6.7,
+   "quickfix_seconds": 2.24,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H09_dropna_columns",
+   "label": "leaky",
+   "bug": "survivor_universe",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "survivor_universe",
+   "description": "drop dropna(axis=1): keep every ticker, point-in-time",
+   "patched_lines": [
+    8
+   ],
+   "localized_line": 8,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "survivor_universe",
+     "description": "drop dropna(axis=1): keep every ticker, point-in-time",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.6193,
+     "avg_gross": 0.9768,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "sharpe": 0.6023,
+    "cagr": 0.1269,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.6193,
+    "cagr": 0.1282,
+    "avg_gross": 0.9768
+   },
+   "diff": "--- a/H09_dropna_columns.py\n+++ b/H09_dropna_columns.py\n@@ -5,7 +5,7 @@\n def generate_signals(data):\n     \"\"\"20-day momentum among names with complete data, top 10.\"\"\"\n     close = data[\"close\"]\n-    universe = close.dropna(axis=\"columns\")\n+    universe = close\n     mom = universe.pct_change(20)\n     order = mom.rank(axis=1, ascending=False)\n     pick = (order <= 10).astype(float)\n",
+   "seconds": 6.8,
+   "quickfix_seconds": 2.35,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "H10_weekly_transform_max",
+   "label": "leaky",
+   "bug": "groupby_transform_max",
+   "holdout": true,
+   "status": "fixed",
+   "fixed": true,
+   "changed": true,
+   "rule": "period_transform",
+   "description": "per-period aggregate broadcast to every day -> value known on the period's first day (transform('first'))",
+   "patched_lines": [
+    13
+   ],
+   "localized_line": 13,
+   "n_candidates": 2,
+   "n_tried": 1,
+   "attempts": [
+    {
+     "rule": "period_transform",
+     "description": "per-period aggregate broadcast to every day -> value known on the period's first day (transform('first'))",
+     "result": "accepted",
+     "blocking": [],
+     "sharpe": 0.9119,
+     "avg_gross": 1.0,
+     "error": null
+    }
+   ],
+   "before": {
+    "clean": false,
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "execution_delay"
+    ],
+    "sharpe": 2.4877,
+    "cagr": 0.7842,
+    "avg_gross": 1.0
+   },
+   "after": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9119,
+    "cagr": 0.2202,
+    "avg_gross": 1.0
+   },
+   "diff": "--- a/H10_weekly_transform_max.py\n+++ b/H10_weekly_transform_max.py\n@@ -10,6 +10,6 @@\n     pick = (mom.rank(axis=1, pct=True) >= 0.8).astype(float)\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     week = close.index.to_period(\"W\")\n-    w = w.groupby(week).transform(\"max\")\n+    w = w.groupby(week).transform('first')\n     w = w.div(w.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     return w.where(listed, 0.0)\n",
+   "seconds": 7.7,
+   "quickfix_seconds": 3.04,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "HC1_expanding_z_clean",
+   "label": "clean",
+   "bug": "none",
+   "holdout": true,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0064,
+    "cagr": 0.2427,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.1,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "HC2_month_end_clean",
+   "label": "clean",
+   "bug": "none",
+   "holdout": true,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.2731,
+    "cagr": 0.3282,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 3.1,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  }
+ ],
+ "pandas": "2.3.3"
+}

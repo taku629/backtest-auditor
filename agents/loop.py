@@ -35,6 +35,8 @@ class Iteration:
     llm_calls: list[dict] = field(default_factory=list)
     audit_seconds: float = 0.0
     user_code: bool = False
+    source: str = "coder"            # coder | user | quick_fix (deterministic patch, no LLM)
+    quick_fix: dict = field(default_factory=dict)   # Quick fix attempt on THIS iteration's code (audit/quickfix.py)
 
     @property
     def clean(self) -> bool:
@@ -83,24 +85,60 @@ def _record(trace: RunTrace, it: Iteration | None, resp: LLMResponse, step: str)
     return call
 
 
+def _try_quick_fix(trace: RunTrace, it: Iteration, rep, data: dict, i: int, cost_bps: float,
+                   sandbox_timeout: float, emit) -> Iteration | None:
+    """Run audit/quickfix.py on a failing iteration; on success append the patched iteration (clean)."""
+    from audit.quickfix import public, quick_fix
+
+    emit({"type": "quickfix_start", "iteration": i})
+    t0 = time.time()
+    try:
+        qf = quick_fix(it.code, data, report=rep, cost_bps=cost_bps, timeout=sandbox_timeout)
+    except Exception as e:  # noqa: BLE001 - the Quick fix is an optimisation, never breaks the loop
+        qf = {"status": "error", "error": f"{type(e).__name__}: {e}"[:300], "cost_usd": 0.0}
+    rep2 = qf.get("report")
+    it.quick_fix = public(qf) | {"code": None}   # the patched code lives on the next iteration
+    emit({"type": "quickfix_done", "iteration": i, "status": qf.get("status"), "quick_fix": it.quick_fix})
+    if qf.get("status") != "fixed" or rep2 is None:
+        return None
+    new = Iteration(i + 1, qf["code"], source="quick_fix", quick_fix=public(qf) | {"code": None})
+    rd = rep2.to_dict()
+    new.tests, new.metrics, new.metrics_lag2 = rd["tests"], rd["metrics"], rd["metrics_lag2"]
+    new.equity = [round(float(x), 6) for x in rep2.equity.to_numpy()]
+    new.dates = [d.strftime("%Y-%m-%d") for d in rep2.equity.index]
+    new.status = "clean" if rep2.clean else "failing"
+    new.audit_seconds = time.time() - t0
+    trace.iterations.append(new)
+    emit({"type": "coder_done", "iteration": i + 1, "code": new.code, "call": None, "quick_fix": True})
+    emit({"type": "tests_done", "iteration": i + 1, "clean": rep2.clean, "tests": new.tests, "metrics": new.metrics})
+    return new
+
+
 def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost_bps: float = 10.0,
                    sandbox_timeout: float = 90.0, on_event: OnEvent | None = None,
-                   summarize: bool = True, initial_code: str | None = None) -> RunTrace:
+                   summarize: bool = True, initial_code: str | None = None, quick_fix: bool = True) -> RunTrace:
     """Run the Coder -> deterministic audit -> Auditor -> Coder loop.
 
     ``initial_code``: audit an existing strategy (e.g. pasted from a notebook) instead of asking the
     Coder for a first draft. Iteration 1 then runs the user's code unchanged.
+
+    ``quick_fix``: when an iteration fails, first try the deterministic Quick fix (``audit/quickfix.py``: candidate
+    patches for the localized line, each re-audited). If one passes every blocking test without going to cash, it
+    becomes the next (final) iteration with ``source="quick_fix"`` and no LLM is called for the repair ($0).
+    Otherwise the Auditor -> Coder path runs as before.
     """
     emit = on_event or (lambda e: None)
     cfg = llm.config
     trace = RunTrace(hypothesis, bool(getattr(llm, "is_mock", False)),
                      {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")},
                      settings={"max_iters": max_iters, "cost_bps": cost_bps, "user_code": bool(initial_code),
+                               "quick_fix": bool(quick_fix),
                                "n_dates": int(len(data["close"])), "n_tickers": int(data["close"].shape[1])})
     prev_code, feedback, trial_sharpes = "", "", []
     last_audit_fb = ""            # the Auditor's latest leak diagnosis, kept across sandbox crashes
     crash_retries_left = 1        # one free retry when a rewrite crashes (does not consume an audit iteration)
     audited = 0                   # iterations that actually ran the audit
+    quick_fixed: set[str] = set()  # code versions the Quick fix already tried
 
     for i in range(max_iters + 1):
         if audited >= max_iters:
@@ -113,7 +151,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
                                                                 feedback_block=fb)}]
         if i == 0 and initial_code:
             code = initial_code if initial_code.endswith("\n") else initial_code + "\n"
-            it = Iteration(i, code, user_code=True)
+            it = Iteration(i, code, user_code=True, source="user")
             trace.iterations.append(it)
             emit({"type": "coder_done", "iteration": i, "code": code, "call": None, "user_code": True})
         else:
@@ -159,6 +197,15 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         if rep.clean:
             break
 
+        # ---- Quick fix: deterministic patch of the localized line, re-audited; no LLM
+        # (it re-audits its patch, so it uses one iteration of the max_iters budget like a Coder rewrite)
+        if quick_fix and code not in quick_fixed and audited < max_iters:
+            quick_fixed.add(code)
+            fixed_it = _try_quick_fix(trace, it, rep, data, i, cost_bps, sandbox_timeout, emit)
+            if fixed_it is not None:
+                audited += 1
+                break
+
         # ---- Auditor (explains the numbers, writes fix instructions)
         if audited >= max_iters:
             break
@@ -183,7 +230,9 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         lines = []
         for it in trace.iterations:
             fails = [t["name"] for t in it.tests if not t["passed"]]
-            lines.append(f"- Iteration {it.index + 1}: status={it.status}; " +
+            origin = {"quick_fix": " (deterministic Quick fix, no LLM: " + str(it.quick_fix.get("description")) + ")",
+                      "user": " (user's code)"}.get(it.source, "")
+            lines.append(f"- Iteration {it.index + 1}{origin}: status={it.status}; " +
                          (f"metrics: {P.fmt_metrics(it.metrics)}; " if it.metrics else "") +
                          f"failing tests: {', '.join(fails) or 'none'}" + (f"; error: {it.error[:200]}" if it.error else ""))
         msgs = [{"role": "system", "content": P.SUMMARIZER_SYSTEM},

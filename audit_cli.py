@@ -2,14 +2,16 @@
 """Backtest Auditor for CI: deterministic look-ahead / survivorship audit of strategy files.
 
     python audit_cli.py strategies/*.py [--data synthetic|csv:PATH] [--format text|markdown|json|sarif]
-                        [--fail-on critical|high|warning] [--out FILE] [--sarif-out FILE] [--fix]
+                        [--fail-on critical|high|warning] [--out FILE] [--sarif-out FILE] [--fix [--write]]
 
 Each file must define ``generate_signals(data) -> weights``. Jupyter notebooks (``.ipynb``) are accepted:
 ``notebook.py`` extracts ``generate_signals`` plus the helpers, constants and imports it uses, and findings
 are reported as "cell N, line M". The strategy is executed in the existing sandbox
 (``sandbox/runner.py``) and checked by the existing deterministic battery (``audit/leak_tests.py``).
-No LLM and no API key are needed for the audit. ``--fix`` optionally runs the Nemotron agent loop
-(``agents/loop.py``) to propose a repaired ``<name>.fixed.py`` when ``NEBIUS_API_KEY`` is set.
+No LLM and no API key are needed for the audit. ``--fix`` first tries the deterministic Quick fix
+(``audit/quickfix.py``: candidate patches of the localized leak line, each re-audited; no LLM, $0) and prints the
+unified diff; ``--write`` saves it as ``<name>.fixed.py``. When no candidate passes, it falls back to the Nemotron agent
+loop (``agents/loop.py``), which writes ``<name>.fixed.py``, if ``NEBIUS_API_KEY`` is set (or ``--mock-llm``).
 
 Exit codes: 0 = no failing test at or above --fail-on; 1 = at least one; 2 = usage error (no files, bad data).
 When ``GITHUB_ACTIONS=true`` it also prints ``::error file=..,line=..::`` workflow annotations and appends a
@@ -95,6 +97,8 @@ class FileResult:
     seconds: float = 0.0
     fixed_path: str = ""
     fix_status: str = ""
+    quick_fix: dict = field(default_factory=dict)   # audit/quickfix.py result (JSON-safe)
+    raw: dict = field(default_factory=dict, repr=False)   # run_audit().to_dict() of the audited code
     code: str = ""                 # audited source (for .ipynb: the module extracted by notebook.py)
     notebook: dict = field(default_factory=dict)   # .ipynb only: cell_count, skipped, warnings, line_map
 
@@ -120,6 +124,7 @@ class FileResult:
                 "def_line": self.def_line, "metrics": self.metrics, "tests": self.tests,
                 "static_findings": self.findings, "seconds": round(self.seconds, 3),
                 **({"fixed_path": self.fixed_path, "fix_status": self.fix_status} if self.fix_status else {}),
+                **({"quick_fix": {k: v for k, v in self.quick_fix.items() if k != "code"}} if self.quick_fix else {}),
                 **({"notebook": {**self.notebook, "extracted_code": self.code}} if self.notebook else {})}
 
 
@@ -251,6 +256,7 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
                         n_cuts=n_cuts, seed=seed)
         rd = rep.to_dict()
         res.tests, res.metrics = rd["tests"], rd["metrics"]
+        res.raw = rd
     except (SandboxError, RuntimeError, ValueError) as e:
         res.error = str(e)
         from audit.leak_tests import evaluate_static
@@ -326,10 +332,28 @@ def strategy_hypothesis(code: str, path: Path) -> str:
     return f"Keep the intent of the strategy in {path.name}, but make it free of look-ahead and survivorship bias."
 
 
-def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iters: int, cost_bps: float) -> None:
-    """Reuse agents/loop.py: audit the user's code first, then let Nemotron repair it."""
-    if not res.failing():
+def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iters: int, cost_bps: float,
+                quick: bool = True, write: bool = False, llm: bool = True, seed: int = 7, n_cuts: int = 6,
+                timeout: float = 90.0) -> None:
+    """Quick fix first (deterministic, no LLM); then, if allowed, agents/loop.py with Nemotron."""
+    if not res.failing() or not any(t.get("blocking") for t in res.tests):
         res.fix_status = "not_needed"
+        return
+    if quick and res.raw and (res.code or not res.notebook):
+        from audit.quickfix import public, quick_fix
+        code = res.code or path.read_text(encoding="utf-8")
+        qf = public(quick_fix(code, data, report=res.raw, seed=seed, n_cuts=n_cuts, cost_bps=cost_bps,
+                              timeout=timeout, name=path.name if not res.notebook else path.stem + ".py"))
+        res.quick_fix = qf
+        if qf.get("status") == "fixed":
+            res.fix_status = "quick_fix"
+            if write:
+                out = path.with_name(path.stem + ".fixed.py")
+                out.write_text(qf["code"], encoding="utf-8")
+                res.fixed_path = display_path(out)
+            return
+    if not llm:
+        res.fix_status = "quick_fix_failed"
         return
     if not mock and not os.environ.get("NEBIUS_API_KEY"):
         res.fix_status = "skipped_no_api_key"
@@ -341,7 +365,7 @@ def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iter
     from agents.loop import run_audit_loop
     code = res.code or path.read_text(encoding="utf-8")   # notebooks: the extracted module -> <name>.fixed.py
     trace = run_audit_loop(strategy_hypothesis(code, path), data, make_llm(mock=mock), max_iters=max_iters,
-                           cost_bps=cost_bps, initial_code=code, summarize=False)
+                           cost_bps=cost_bps, initial_code=code, summarize=False, quick_fix=False)
     last = trace.iterations[-1] if trace.iterations else None
     if last is None or last.user_code:
         res.fix_status = "no_candidate"
@@ -386,6 +410,22 @@ def _notebook_text(r: FileResult) -> list[str]:
     return out
 
 
+def _quick_fix_text(r: FileResult) -> list[str]:
+    qf = r.quick_fix
+    if not qf:
+        return []
+    if qf.get("status") == "fixed":
+        b, a = qf["before"], qf["after"]
+        out = [f"  ⚡ Quick fix (no LLM, $0): {qf['rule']} at {', '.join(_ref(r, ln) for ln in qf['lines'])}: "
+               f"{qf['description']}",
+               f"     Sharpe {b['sharpe']:.2f} -> {a['sharpe']:.2f}; patched code passes every blocking test "
+               f"(gross exposure {a['avg_gross']:.2f}, not cash).", ""]
+        out += ["     " + ln for ln in qf["diff"].rstrip("\n").splitlines()]
+        return out
+    return [f"  ⚡ Quick fix: {qf.get('status')} ({qf.get('n_candidates', 0)} candidate(s) tried, none passed "
+            "without going to cash)."]
+
+
 def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
     out = [f"{TOOL_NAME} {TOOL_VERSION}  |  data: {data_desc}  |  fail-on: {fail_on}", ""]
     for r in results:
@@ -414,6 +454,7 @@ def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
                 out.append(f"         {_ref(r, ln['line'])}  [{ln['rule']}]  {ln['snippet']}")
             if t.get("suggested_fix"):
                 out.append(f"         fix: {t['suggested_fix']}")
+        out += _quick_fix_text(r)
         if r.fix_status:
             out.append(f"  --fix: {r.fix_status}" + (f" -> {r.fixed_path}" if r.fixed_path else ""))
         out.append("")
@@ -461,6 +502,11 @@ def render_markdown(results: list[FileResult], fail_on: str, data_desc: str) -> 
             for t in fails:
                 if t.get("suggested_fix"):
                     out.append(f"- **{t['name']}**: {t['suggested_fix']}")
+        if r.quick_fix.get("status") == "fixed":
+            qf = r.quick_fix
+            out += ["", f"**⚡ Quick fix (no LLM, $0)**: `{qf['rule']}` — {qf['description']}; Sharpe "
+                        f"{qf['before']['sharpe']:.2f} → {qf['after']['sharpe']:.2f}", "", "```diff",
+                    qf["diff"].rstrip(), "```"]
         if r.fix_status:
             out.append(f"\n`--fix`: {r.fix_status}" + (f" → `{r.fixed_path}`" if r.fixed_path else ""))
         out.append("")
@@ -623,7 +669,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--cost-bps", type=float, default=10.0)
     ap.add_argument("--timeout", type=float, default=90.0, help="sandbox wall-clock seconds per file")
     ap.add_argument("--fix", action="store_true",
-                    help="propose <name>.fixed.py with the Nemotron agent loop (needs NEBIUS_API_KEY)")
+                    help="repair failing files: deterministic Quick fix first (prints a diff, no LLM), then the "
+                         "Nemotron agent loop (needs NEBIUS_API_KEY) if no candidate passes")
+    ap.add_argument("--write", action="store_true", help="with --fix: write the Quick fix to <name>.fixed.py")
+    ap.add_argument("--no-quickfix", action="store_true", help="with --fix: skip the Quick fix, LLM only")
+    ap.add_argument("--no-llm", action="store_true", help="with --fix: Quick fix only, never call an LLM")
     ap.add_argument("--mock-llm", action="store_true", help="with --fix: use the offline mock LLM (demo/tests)")
     ap.add_argument("--max-iters", type=int, default=4, help="with --fix: agent loop iterations")
     return ap
@@ -651,7 +701,9 @@ def main(argv: list[str] | None = None) -> int:
         r = audit_file(p, data, seed=a.seed, n_cuts=a.n_cuts, cost_bps=a.cost_bps, timeout=a.timeout)
         if a.fix:
             try:
-                propose_fix(p, r, data, mock=a.mock_llm, max_iters=a.max_iters, cost_bps=a.cost_bps)
+                propose_fix(p, r, data, mock=a.mock_llm, max_iters=a.max_iters, cost_bps=a.cost_bps,
+                            quick=not a.no_quickfix, write=a.write, llm=not a.no_llm, seed=a.seed,
+                            n_cuts=a.n_cuts, timeout=a.timeout)
             except Exception as e:  # noqa: BLE001 - a failed fix must never hide the audit result
                 r.fix_status = f"error: {e}"
             if r.fix_status == "skipped_no_api_key":

@@ -4,8 +4,9 @@
 
 Type a trading idea in plain English ("buy stocks whose 20-day momentum is in the top decile, rebalance weekly").
 A Nemotron **Coder** agent writes the strategy, it runs in a sandbox, and a battery of deterministic tests
-hunts for look-ahead bias, survivorship bias and overfitting. A Nemotron **Auditor** agent reads the failing
-evidence and tells the Coder exactly what to fix. The loop repeats until no blocking test fails.
+hunts for look-ahead bias, survivorship bias and overfitting. When a test fails, a deterministic **Quick fix**
+first tries rule-based patches of the exact leak line, with no LLM at all; only if none passes does a Nemotron
+**Auditor** agent read the failing evidence and tell the Coder what to fix. The loop repeats until no blocking test fails.
 
 The LLM never judges correctness on its own. Numbers do.
 
@@ -26,6 +27,8 @@ found later, with real money. Asking another LLM "is this code correct?" is not 
  hypothesis ─▶ Coder (Nemotron Super) ─▶ code ─▶ Sandbox ─▶ signals on the real data + perturbed copies
                      ▲                                              │
                      │                                              ▼
+                     │                        ⚡ Quick fix: patch the localized line, re-audit (no LLM, $0)
+                     │                                              │ no candidate passes
            fix instructions ◀── Auditor (Nemotron Ultra) ◀── deterministic test JSON + metrics
                                                                     │
                                    stop when no critical/high test fails ─▶ Summarizer (Nemotron Lightning)
@@ -107,18 +110,21 @@ paste from a notebook, where look-ahead bugs usually live.
 
 ## Results on the bundled demo (Mock mode, seed 51)
 
-| Scenario | First draft (leaky) | Audited final | Iterations |
+| Scenario | First draft (leaky) | Audited final, Quick fix on (default) | Audited final, LLM path only |
 |---|---|---|---|
-| Momentum, top decile, weekly | Sharpe 6.63, CAGR 545% | Sharpe 0.97, CAGR 25% | 3 |
-| Mean reversion below MA | Sharpe 10.96 | Sharpe −0.87 (the honest version loses money) | 2 |
-| Low volatility, monthly | Sharpe 0.65 | Sharpe 0.70 | 2 |
+| Momentum, top decile, weekly | Sharpe 6.63, CAGR 545% | Sharpe 0.73, CAGR 18%, 2 iterations, 0 repair calls | Sharpe 0.97, CAGR 25%, 3 iterations |
+| Mean reversion below MA | Sharpe 10.96 | Sharpe −0.92, 2 iterations, 0 repair calls | Sharpe −0.87, 2 iterations |
+| Low volatility, monthly | Sharpe 0.65 | Sharpe 0.70, 2 iterations, 0 repair calls | Sharpe 0.70, 2 iterations |
+
+The honest mean-reversion strategy loses money either way. Quick fix patches are minimal edits of the draft, so
+they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shift(-1)` into `shift(1)`, one extra day of lag, while the mock Coder's rewrite drops the shift and rebuilds the weekly rebalance).
 
 ## Setup
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 46 tests, fully offline
+pytest                                   # 249 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
@@ -165,6 +171,30 @@ Nemotron Auditor ("Leak enters at line 13: `pctl = mom.rank(pct=True)`"). See `b
 Repaired 69/72 (with hint) vs 70/72 (without); the hint cuts Auditor output tokens by 46% and wrong line references
 from 5 to 1; no run passed by going to cash; all failures were Coder rewrites crashing in the sandbox. $1.08 total.
 
+## Quick fix: deterministic repair, no LLM
+
+Once the localizer has pinned the leak line, `audit/quickfix.py` generates a few candidate patches for it (and for the
+lines the static scan flags) from general pandas rewrite rules: `shift(-k)` → `shift(k)` (or lag the trailing estimate
+that consumes a forward target), centred → trailing window, `bfill`/`interpolate` → `ffill`, `rank()` →
+`rank(axis=1)` or an expanding rank, full-sample `mean/std/quantile` → `expanding()`, `sub(X.mean(), axis=1)` →
+cross-sectional demeaning, `resample('MS').last()` → `resample('ME')`, `transform('last')` → `'first'`, drop a
+time reversal, pooled `qcut` → per date, `dropna(axis=1)` → keep every ticker, and a last-resort `.shift(1)`.
+Each candidate is re-run through the **full** deterministic audit; the first one that passes every blocking test
+without going to cash (`non_trivial` passes, gross exposure ≥ 5%) is accepted and shown as a unified diff with
+Sharpe before/after. The agent loop tries it before calling the Coder and falls back to Nemotron when it fails.
+
+| Repair on the 24 leaky LeakBench strategies | Repaired | Changes on 15 clean | Cost per repair |
+|---|---|---|---|
+| ⚡ Quick fix (deterministic) | **19/24** (79%) | 0/15 (it only runs when a blocking test fails) | **$0** |
+| Nemotron loop (`bench/REPAIR.md`) | 69/72 runs (96%) | not measured | $0.0072 |
+
+The 5 it declines are selection and regression leaks (universe chosen from the last row or last 60 days, a full-sample
+count filter, a per-ticker `polyfit`) that need a redesign rather than a one-line rewrite; the LLM repaired those in
+14/15 live runs, so Quick fix first, LLM second, would need an LLM call for only 5 of the 24. Held-out check: 10/10 extra leaky variants written after the rules (`bench/quickfix_holdout/`, same author).
+Caveat: the rules are general, not file-specific, but they were written by the LeakBench author with LeakBench in
+view, so treat 19/24 as an in-sample number. Details: [`bench/QUICKFIX.md`](bench/QUICKFIX.md)
+(`python -m bench.run_quickfix`, offline).
+
 ## Jupyter notebooks
 
 Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
@@ -176,7 +206,8 @@ is extracted with the helpers, constants and imports it uses, and findings point
 ```bash
 python audit_cli.py "strategies/**/*.py"            # exit 1 on look-ahead / survivorship; points at the lines
 python audit_cli.py strategy.py --format sarif --out audit.sarif   # GitHub code scanning annotations
-python audit_cli.py strategy.py --fix               # with NEBIUS_API_KEY: Nemotron writes strategy.fixed.py
+python audit_cli.py strategy.py --fix               # Quick fix diff (no LLM); falls back to Nemotron with NEBIUS_API_KEY
+python audit_cli.py strategy.py --fix --write --no-llm   # write the deterministic patch to strategy.fixed.py
 ```
 
 GitHub Action: `uses: taku629/backtest-auditor@main` with `paths:` (annotates the offending lines in PRs, uploads SARIF).
@@ -195,14 +226,15 @@ survivor-biased and the audit says so. See `data/real/README.md`.
 app.py                 Streamlit UI
 cli.py                 headless loop
 agents/                config (model routing, pricing), LLM clients (Nebius + Mock), prompts, loop, canned drafts
-audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py
+audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, report), ast_scan.py, overfitting.py,
+                       localize.py (dynamic leak line), quickfix.py (deterministic repair)
 engine/backtester.py   causal daily backtester and metrics
 sandbox/               runner.py (policy + subprocess), _child.py (restricted executor)
 data/                  synthetic.py (seeded panel), loader.py (CSV)
 bench/                 LeakBench strategies, runner, results, Streamlit view
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (122 tests)
+tests/                 pytest suite (249 tests)
 ```
 
 ## Limitations
