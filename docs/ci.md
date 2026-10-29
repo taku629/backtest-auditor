@@ -73,6 +73,36 @@ examples/leaky_momentum.py  ->  FAIL  (3 test(s) at or above 'high')
 Summary: 0/1 file(s) passed (fail-on: high).
 ```
 
+## Jupyter notebooks
+
+`.ipynb` files (and globs such as `"research/**/*.ipynb"`) are audited directly; `.ipynb_checkpoints/` is skipped.
+`notebook.py` (`extract_strategy(source, filename)`) reads the notebook JSON (no nbformat or Jupyter needed),
+neutralises IPython syntax (`%matplotlib`, `!pip`, `%%time`; `%%bash`-style cells are skipped), skips cells
+that do not parse, and walks the AST from `generate_signals` to keep only the helper functions, constants and
+imports it depends on. Plots, exploration and data-loading cells are left out; the strategy still receives the
+auditor's `data`. What was skipped is listed in the report.
+
+```text
+$ python audit_cli.py examples/leaky_research.ipynb          # exit 1
+  notebook: 14 cells (9 code); generate_signals in cell 11; audited np, LOOKBACK, TOP_PCT, zscore, momentum, generate_signals
+  [FAIL] future_perturbation  critical LOOK-AHEAD: ...
+         examples/leaky_research.ipynb (cell 9, line 7)  [...]  return (df - df.mean()) / df.std()
+         examples/leaky_research.ipynb (cell 10, line 4)  [negative_shift]  return mom.shift(-1)
+```
+
+Cells are numbered 1-based over all cells, markdown included (the order VS Code and JupyterLab show).
+Text, Markdown and JSON reports say "cell N, line M"; JSON also includes the extracted module and the line map.
+**SARIF and `::error` annotations** point at the notebook file, but GitHub cannot reliably place annotations
+inside `.ipynb` JSON, so `startLine` is the line in the *extracted module* and every message starts with
+`[cell N line M]` (SARIF results also carry `notebookCell` / `notebookCellLine` properties). Expect the alert on
+the notebook file in the PR, and read the cell reference from the message. A notebook with no `generate_signals`
+fails with a `notebook` test that explains the contract and names any function that looks like a signal.
+`--fix` writes the repaired extracted module to `<name>.fixed.py` next to the notebook.
+
+In the GitHub Action, `paths` takes several whitespace-separated globs, so add notebooks there:
+`paths: "strategies/**/*.py strategies/**/*.ipynb"`. This repo's example workflow audits `examples/*.py` only,
+so `examples/leaky_research.ipynb` is not part of that CI job.
+
 ## GitHub Action
 
 ```yaml

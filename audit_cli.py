@@ -4,7 +4,9 @@
     python audit_cli.py strategies/*.py [--data synthetic|csv:PATH] [--format text|markdown|json|sarif]
                         [--fail-on critical|high|warning] [--out FILE] [--sarif-out FILE] [--fix]
 
-Each file must define ``generate_signals(data) -> weights``. It is executed in the existing sandbox
+Each file must define ``generate_signals(data) -> weights``. Jupyter notebooks (``.ipynb``) are accepted:
+``notebook.py`` extracts ``generate_signals`` plus the helpers, constants and imports it uses, and findings
+are reported as "cell N, line M". The strategy is executed in the existing sandbox
 (``sandbox/runner.py``) and checked by the existing deterministic battery (``audit/leak_tests.py``).
 No LLM and no API key are needed for the audit. ``--fix`` optionally runs the Nemotron agent loop
 (``agents/loop.py``) to propose a repaired ``<name>.fixed.py`` when ``NEBIUS_API_KEY`` is set.
@@ -36,6 +38,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 from audit.ast_scan import scan_code  # noqa: E402
 from audit.leak_tests import SEVERITY_ORDER, run_audit  # noqa: E402
 from sandbox.runner import SandboxError, SandboxExecutor, check_policy  # noqa: E402
+from notebook import extract_strategy  # noqa: E402
 
 TOOL_NAME = "Backtest Auditor"
 TOOL_VERSION = "0.2.0"
@@ -53,6 +56,11 @@ GH_LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "n
 # Which static-scan rules are plausible root causes of each dynamic failure (used to point at source lines).
 LOOKAHEAD_RULES = {"negative_shift", "negative_pct_change", "negative_diff", "centered_window", "backward_fill",
                    "interpolation", "full_sample_statistic", "survivor_universe"}
+try:  # the newer pandas-trap hint rules (time_axis_rank, resample_start_label, ...)
+    from audit.ast_scan import LOOKAHEAD_RULE_IDS as _EXTRA_RULES
+    LOOKAHEAD_RULES = set(LOOKAHEAD_RULES) | set(_EXTRA_RULES)
+except ImportError:
+    pass
 SUSPECT_RULES = {
     "future_perturbation": LOOKAHEAD_RULES,
     "survivorship": {"survivor_universe"},
@@ -87,6 +95,18 @@ class FileResult:
     seconds: float = 0.0
     fixed_path: str = ""
     fix_status: str = ""
+    code: str = ""                 # audited source (for .ipynb: the module extracted by notebook.py)
+    notebook: dict = field(default_factory=dict)   # .ipynb only: cell_count, skipped, warnings, line_map
+
+    def cell_of(self, line: int) -> tuple[int, int] | None:
+        """(cell, line in cell) for a line of the audited code when it came from a notebook."""
+        v = (self.notebook.get("line_map") or {}).get(int(line or 0))
+        return (v[0], v[1]) if v and v[0] is not None else None
+
+    def where(self, line: int, sep: str = ", ") -> str:
+        """'cell N, line M' for notebooks, '' for plain files."""
+        c = self.cell_of(line)
+        return f"cell {c[0]}{sep}line {c[1]}" if c else ""
 
     def failing(self) -> list[dict]:
         return [t for t in self.tests if not t["passed"]]
@@ -99,7 +119,8 @@ class FileResult:
         return {"path": self.path, "passed": not self.fails_threshold(fail_on), "error": self.error or None,
                 "def_line": self.def_line, "metrics": self.metrics, "tests": self.tests,
                 "static_findings": self.findings, "seconds": round(self.seconds, 3),
-                **({"fixed_path": self.fixed_path, "fix_status": self.fix_status} if self.fix_status else {})}
+                **({"fixed_path": self.fixed_path, "fix_status": self.fix_status} if self.fix_status else {}),
+                **({"notebook": {**self.notebook, "extracted_code": self.code}} if self.notebook else {})}
 
 
 # ----------------------------------------------------------------------------
@@ -110,7 +131,8 @@ def expand_paths(patterns: list[str]) -> tuple[list[Path], list[str]]:
     for pat in patterns:
         if any(c in pat for c in "*?["):   # glob: skip directories and our own *.fixed.py outputs
             hits = [h for h in sorted(glob.glob(pat, recursive=True))
-                    if Path(h).is_file() and not h.endswith(".fixed.py")]
+                    if Path(h).is_file() and not h.endswith(".fixed.py")
+                    and ".ipynb_checkpoints" not in Path(h).parts]
         else:
             hits = [pat]
         if not hits:
@@ -172,6 +194,10 @@ def key_evidence(test: dict) -> list[str]:
     ev, n = test.get("evidence") or {}, test["name"]
     out = []
     if n == "future_perturbation":
+        lz = ev.get("localized") or {}
+        if lz.get("found") and lz.get("entry"):
+            out.append(f"leak enters at {lz['entry'].get('where') or 'line ' + str(lz['entry']['line'])} "
+                       f"(dynamic): `{lz['entry']['source_line']}`")
         out.append(f"leaking cut dates: {ev.get('n_leaking_cuts')}/{ev.get('n_cuts')}; "
                    f"max |weight change| {ev.get('max_abs_weight_change')}")
         for c in (ev.get("cuts") or [])[:3]:
@@ -204,8 +230,18 @@ def key_evidence(test: dict) -> list[str]:
 def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_bps: float = 10.0,
                timeout: float = 90.0) -> FileResult:
     t0 = time.time()
-    code = path.read_text(encoding="utf-8")
-    res = FileResult(display_path(path), str(path.resolve()), def_line=def_line_of(code))
+    nb: dict = {}
+    if path.suffix.lower() == ".ipynb":
+        nb = extract_strategy(path.read_bytes(), display_path(path))
+        if not nb["ok"]:
+            return _notebook_error(path, nb, time.time() - t0)
+        code = nb["code"]
+    else:
+        code = path.read_text(encoding="utf-8")
+    res = FileResult(display_path(path), str(path.resolve()), def_line=def_line_of(code), code=code)
+    if nb:
+        res.notebook = {k: nb[k] for k in ("line_map", "cell_count", "code_cell_count", "entry_cell", "kept",
+                                           "skipped", "warnings")}
     res.findings = [f.to_dict() for f in scan_code(code)]
     violations = check_policy(code)
     try:
@@ -231,8 +267,47 @@ def audit_file(path: Path, data: dict, *, seed: int = 7, n_cuts: int = 6, cost_b
         if t["name"] == "sandbox":
             t["lines"] = [{"line": int(v.split()[1].rstrip(":")), "rule": "sandbox_policy", "snippet": v}
                           for v in violations if v.startswith("line ")]
+        lz = (t.get("evidence") or {}).get("localized") or {}
+        if t["name"] == "future_perturbation" and not t["passed"] and lz.get("found") and lz.get("entry"):
+            e = lz["entry"]  # dynamic localization (audit/localize.py) becomes the primary line
+            same = [x["rule"] for x in t["lines"] if x["line"] == e["line"]]
+            t["lines"] = [{"line": e["line"], "rule": ", ".join(["dynamic_leak_entry", *same]),
+                           "snippet": e["source_line"], "severity": t["severity"],
+                           "message": f"leak enters at line {e['line']} (dynamic): {e['kind']}",
+                           "fix": t.get("suggested_fix", "")}] + [x for x in t["lines"] if x["line"] != e["line"]]
     res.tests.sort(key=lambda t: (t["passed"], SEVERITY_ORDER.get(t["severity"], 9)))
+    _annotate_cells(res)
     res.seconds = time.time() - t0
+    return res
+
+
+def _annotate_cells(res: FileResult) -> None:
+    """Notebooks: add cell / cell_line to every line reference (lines stay lines of the extracted code)."""
+    if not res.notebook:
+        return
+    for item in res.findings + [ln for t in res.tests for ln in t.get("lines", [])]:
+        c = res.cell_of(item.get("line", 0))
+        if c:
+            item["cell"], item["cell_line"] = c
+            if str(item.get("message", "")).startswith(f"leak enters at line {item['line']} "):
+                item["message"] = item["message"].replace(f"at line {item['line']} ", f"at {res.where(item['line'])} ", 1)
+    for t in res.tests:   # dynamic localization entry (audit/localize.py) -> cell reference
+        e = ((t.get("evidence") or {}).get("localized") or {}).get("entry")
+        if isinstance(e, dict) and res.cell_of(e.get("line", 0)):
+            e["cell"], e["cell_line"] = res.cell_of(e["line"])
+            e["where"] = res.where(e["line"])
+
+
+def _notebook_error(path: Path, nb: dict, seconds: float) -> FileResult:
+    """A notebook we could not turn into a strategy module fails like a sandbox error, with the contract."""
+    res = FileResult(display_path(path), str(path.resolve()), error=nb["error"], seconds=seconds,
+                     notebook={k: nb.get(k) for k in ("cell_count", "code_cell_count", "skipped", "warnings")})
+    res.notebook["line_map"] = {}
+    res.tests = [{"name": "notebook", "passed": False, "severity": "critical", "blocking": True,
+                  "summary": "No auditable strategy could be extracted from the notebook.",
+                  "evidence": {"error": nb["error"], "skipped": nb.get("skipped", [])}, "lines": [],
+                  "suggested_fix": "Define generate_signals(data) in a code cell; it may use helper functions, "
+                                   "constants and numpy/pandas imports from other cells."}]
     return res
 
 
@@ -259,9 +334,12 @@ def propose_fix(path: Path, res: FileResult, data: dict, *, mock: bool, max_iter
     if not mock and not os.environ.get("NEBIUS_API_KEY"):
         res.fix_status = "skipped_no_api_key"
         return
+    if res.notebook and not res.code:
+        res.fix_status = "no_strategy_extracted"
+        return
     from agents.llm import make_llm
     from agents.loop import run_audit_loop
-    code = path.read_text(encoding="utf-8")
+    code = res.code or path.read_text(encoding="utf-8")   # notebooks: the extracted module -> <name>.fixed.py
     trace = run_audit_loop(strategy_hypothesis(code, path), data, make_llm(mock=mock), max_iters=max_iters,
                            cost_bps=cost_bps, initial_code=code, summarize=False)
     last = trace.iterations[-1] if trace.iterations else None
@@ -282,6 +360,32 @@ def _status(t: dict) -> str:
     return "PASS" if t["passed"] else "FAIL"
 
 
+def _ref(r: FileResult, line: int) -> str:
+    """'path:LINE' for .py files, 'path (cell N, line M)' for notebooks."""
+    w = r.where(line)
+    return f"{r.path} ({w})" if w else f"{r.path}:{line}"
+
+
+def _notebook_text(r: FileResult) -> list[str]:
+    nb = r.notebook
+    if not nb:
+        return []
+    out = []
+    if r.code:
+        out.append(f"  notebook: {nb.get('cell_count')} cells ({nb.get('code_cell_count')} code); "
+                   f"generate_signals in cell {nb.get('entry_cell')}; audited "
+                   f"{', '.join(nb.get('kept') or [])}")
+    else:
+        out.append(f"  notebook error: {r.error}")
+    skipped = nb.get("skipped") or []
+    if skipped:
+        out.append("  skipped: " + "; ".join(f"cell {s['cell']} line {s['line']} {s['text'][:40]!r} ({s['kind']})"
+                                            for s in skipped[:6]) + (" ..." if len(skipped) > 6 else ""))
+    for w in nb.get("warnings") or []:
+        out.append(f"  warning: {w}")
+    return out
+
+
 def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
     out = [f"{TOOL_NAME} {TOOL_VERSION}  |  data: {data_desc}  |  fail-on: {fail_on}", ""]
     for r in results:
@@ -293,7 +397,8 @@ def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
             m = r.metrics
             out.append(f"  backtest: Sharpe {m.get('sharpe', 0):.2f}, CAGR {m.get('cagr', 0):.1%}, "
                        f"max DD {m.get('max_drawdown', 0):.1%}, turnover {m.get('turnover_annual', 0):.1f}x/yr")
-        if r.error:
+        out += _notebook_text(r)
+        if r.error and not (r.notebook and not r.code):
             out.append(f"  sandbox error: {'; '.join(r.error.splitlines())[:300]}")
         out.append("=" * 78)
         for t in r.tests:
@@ -306,7 +411,7 @@ def render_text(results: list[FileResult], fail_on: str, data_desc: str) -> str:
             for e in key_evidence(t):
                 out.append(f"         evidence: {e}")
             for ln in t.get("lines", []):
-                out.append(f"         {r.path}:{ln['line']}  [{ln['rule']}]  {ln['snippet']}")
+                out.append(f"         {_ref(r, ln['line'])}  [{ln['rule']}]  {ln['snippet']}")
             if t.get("suggested_fix"):
                 out.append(f"         fix: {t['suggested_fix']}")
         if r.fix_status:
@@ -330,11 +435,15 @@ def render_markdown(results: list[FileResult], fail_on: str, data_desc: str) -> 
             m = r.metrics
             out.append(f"Sharpe **{m.get('sharpe', 0):.2f}**, CAGR {m.get('cagr', 0):.1%}, "
                        f"max DD {m.get('max_drawdown', 0):.1%}")
-        if r.error:
+        if r.notebook:
+            out += [""] + [f"> {_md_escape(x.strip())}  " for x in _notebook_text(r)]
+        elif r.error:
+            out.append(f"> Sandbox error: `{_md_escape('; '.join(r.error.splitlines())[:300])}`")
+        if r.notebook and r.error and r.code:
             out.append(f"> Sandbox error: `{_md_escape('; '.join(r.error.splitlines())[:300])}`")
         out += ["", "| Test | Result | Severity | Summary | First leak | Lines |", "|---|---|---|---|---|---|"]
         for t in r.tests:
-            lines = ", ".join(f"L{x['line']}" for x in t.get("lines", []))
+            lines = ", ".join(r.where(x["line"], " ") or f"L{x['line']}" for x in t.get("lines", []))
             out.append(f"| {t['name']} | {'✅ pass' if t['passed'] else '❌ fail'} | {t['severity']} | "
                        f"{_md_escape(t['summary'])} | {first_leak(t) or ''} | {lines} |")
         fails = r.failing()
@@ -347,7 +456,7 @@ def render_markdown(results: list[FileResult], fail_on: str, data_desc: str) -> 
             if by_line:
                 out += ["", "**Offending lines**", ""]
                 for n, e in sorted(by_line.items()):
-                    out.append(f"- `{r.path}:{n}` `{e['snippet']}` — {e['rule']} ({', '.join(e['tests'])})")
+                    out.append(f"- `{_ref(r, n)}` `{e['snippet']}` — {e['rule']} ({', '.join(e['tests'])})")
             out += ["", "**Suggested fixes**", ""]
             for t in fails:
                 if t.get("suggested_fix"):
@@ -370,6 +479,18 @@ def _info_uri() -> str:
     if os.environ.get("GITHUB_REPOSITORY"):
         return f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ['GITHUB_REPOSITORY']}"
     return INFO_URI
+
+
+def _cell_prefix(r: FileResult, line: int) -> str:
+    """Notebooks: SARIF/annotation regions point at the extracted module, so name the cell in the message.
+    (GitHub cannot reliably annotate lines inside .ipynb JSON; the file-level location still lands on the PR.)"""
+    w = r.where(line, " ")
+    return f"[{w}] " if w else ""
+
+
+def _cell_props(r: FileResult, line: int) -> dict:
+    c = r.cell_of(line)
+    return {"notebookCell": c[0], "notebookCellLine": c[1], "lineRefersTo": "extracted module"} if c else {}
 
 
 def build_sarif(results: list[FileResult], fail_on: str) -> dict:
@@ -401,25 +522,26 @@ def build_sarif(results: list[FileResult], fail_on: str) -> dict:
                     idx = rule(rid, f["message"], f["severity"], f["fix"])
                     sarif_results.append({
                         "ruleId": rid, "ruleIndex": idx, "level": SARIF_LEVEL.get(f["severity"], "warning"),
-                        "message": {"text": f"{f['message']} Fix: {f['fix']}"},
+                        "message": {"text": _cell_prefix(r, f["line"]) + f"{f['message']} Fix: {f['fix']}"},
                         "locations": [loc(r.path, f["line"], f["snippet"])],
-                        "properties": {"severity": f["severity"], "test": "static_scan"}})
+                        "properties": {"severity": f["severity"], "test": "static_scan", **_cell_props(r, f["line"])}})
                 continue
             rid = f"dynamic/{t['name']}"
             idx = rule(rid, TEST_HELP.get(t["name"], t["name"]), t["severity"], t.get("suggested_fix", ""))
             lines = t.get("lines") or []
             primary = lines[0] if lines else {"line": r.def_line, "snippet": ""}
-            msg = t["summary"]
+            msg = _cell_prefix(r, primary["line"]) + t["summary"]
             if first_leak(t):
                 msg += f" First leaking date: {first_leak(t)}."
             if lines:
-                msg += " Suspect line(s): " + ", ".join(f"{x['line']} ({x['rule']})" for x in lines) + "."
+                msg += " Suspect line(s): " + ", ".join(f"{r.where(x['line'], ' ') or x['line']} ({x['rule']})"
+                                                        for x in lines) + "."
             if t.get("suggested_fix"):
                 msg += f" Fix: {t['suggested_fix']}"
             item = {"ruleId": rid, "ruleIndex": idx, "level": SARIF_LEVEL.get(t["severity"], "warning"),
                     "message": {"text": msg}, "locations": [loc(r.path, primary["line"], primary.get("snippet", ""))],
                     "properties": {"severity": t["severity"], "test": t["name"],
-                                   "evidence": t.get("evidence", {})}}
+                                   "evidence": t.get("evidence", {}), **_cell_props(r, primary["line"])}}
             if len(lines) > 1:
                 item["relatedLocations"] = [dict(loc(r.path, x["line"], x["snippet"]), id=i,
                                                  message={"text": x["rule"]}) for i, x in enumerate(lines[1:], 1)]
@@ -476,7 +598,7 @@ def github_annotations(results: list[FileResult]) -> list[str]:
                 if fix:
                     msg += f" Fix: {fix}"
                 out.append(f"::{level} file={_gh_escape(r.path, True)},line={ln['line']},"
-                           f"title={_gh_escape(title, True)}::{_gh_escape(msg)}")
+                           f"title={_gh_escape(title, True)}::{_gh_escape(_cell_prefix(r, ln['line']) + msg)}")
     return out
 
 
@@ -486,7 +608,8 @@ def github_annotations(results: list[FileResult]) -> list[str]:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="audit_cli.py", description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("paths", nargs="+", help="strategy .py files or globs (quoted globs are expanded, ** allowed)")
+    ap.add_argument("paths", nargs="+", help="strategy .py / .ipynb files or globs (quoted globs are expanded, "
+                                             "** allowed)")
     ap.add_argument("--data", default="synthetic", help="'synthetic' (default, seeded panel) or 'csv:PATH'")
     ap.add_argument("--format", choices=list(RENDERERS), default="text")
     ap.add_argument("--fail-on", choices=list(FAIL_ON), default="high",

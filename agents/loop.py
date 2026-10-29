@@ -153,7 +153,7 @@ def run_audit_loop(hypothesis: str, data: dict, llm, *, max_iters: int = 4, cost
         msgs = [{"role": "system", "content": P.AUDITOR_SYSTEM},
                 {"role": "user", "content": P.AUDITOR_USER.format(
                     hypothesis=hypothesis, iteration=i + 1, code=code, cost_bps=cost_bps,
-                    metrics=P.fmt_metrics(it.metrics), tests=P.compact_tests(it.tests))}]
+                    metrics=P.fmt_metrics(it.metrics), tests=P.compact_tests(it.tests)) + P.localized_hint(it.tests)}]
         aresp = llm.chat("auditor", msgs, context={"hypothesis": hypothesis, "iteration": i, "code": code,
                                                    "tests": it.tests, "metrics": it.metrics})
         it.auditor_feedback = aresp.text

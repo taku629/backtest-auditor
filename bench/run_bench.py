@@ -136,6 +136,9 @@ def deterministic_audit(code: str, data: dict, *, sandbox: bool = True, timeout:
             "blocking": [t.name for t in rep.tests if t.blocking],
             "failing": [t.name for t in rep.tests if not t.passed],
             "tests": tests, "sharpe": round(float(rep.metrics.get("sharpe", 0.0)), 3),
+            "static_findings": sorted({(f["rule"], f["severity"]) for f in
+                                       next((t.evidence.get("findings", []) for t in rep.tests
+                                             if t.name == "static_scan"), [])}),
             "seconds": round(time.time() - t0, 2)}
 
 
@@ -284,6 +287,7 @@ def write_markdown(res: dict, path: Path = RESULTS_MD) -> None:
     abl = res.get("ablations") or {}
     if abl:
         names = {"static_scan_only": "Static AST scan alone", "dynamic_tests_only": "Dynamic tests alone (no AST scan)",
+                 "static_scan_any_finding": "Static AST scan, any finding incl. non-blocking hints",
                  "future_perturbation_only": "Future-perturbation test alone"}
         L += ["", "### Ablation: which deterministic tests do the work", "",
               "| Subset of the suite | Recall | FPR |", "|---|---|---|"]
@@ -372,7 +376,9 @@ def ablations(rows: list[dict]) -> dict:
     dynamic = [bool(set(r["deterministic"]["blocking"]) - {"static_scan"}) or bool(r["deterministic"]["error"])
                for r in rows]
     pert = [("future_perturbation" in r["deterministic"]["blocking"]) for r in rows]
+    hints = [bool(r["deterministic"].get("static_findings")) for r in rows]
     return {"static_scan_only": score(labels, static_only),
+            "static_scan_any_finding": score(labels, hints),
             "dynamic_tests_only": score(labels, dynamic),
             "future_perturbation_only": score(labels, pert)}
 

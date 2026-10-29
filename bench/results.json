@@ -2,7 +2,7 @@
  "benchmark": "LeakBench",
  "version": 1,
  "prompt_version": "v1",
- "generated_at": "2026-10-29 02:53 UTC",
+ "generated_at": "2026-10-29 03:39 UTC",
  "data": {
   "source": "data.synthetic.generate_panel()",
   "seed": 51,
@@ -78,6 +78,19 @@
    "accuracy": 0.5385,
    "f1": 0.4
   },
+  "static_scan_any_finding": {
+   "n": 39,
+   "tp": 19,
+   "fn": 5,
+   "fp": 1,
+   "tn": 14,
+   "unanswered": 0,
+   "recall": 0.7917,
+   "false_positive_rate": 0.0667,
+   "precision": 0.95,
+   "accuracy": 0.8462,
+   "f1": 0.8636
+  },
   "dynamic_tests_only": {
    "n": 39,
    "tp": 24,
@@ -93,16 +106,16 @@
   },
   "future_perturbation_only": {
    "n": 39,
-   "tp": 23,
-   "fn": 1,
+   "tp": 24,
+   "fn": 0,
    "fp": 0,
    "tn": 15,
    "unanswered": 0,
-   "recall": 0.9583,
+   "recall": 1.0,
    "false_positive_rate": 0.0,
    "precision": 1.0,
-   "accuracy": 0.9744,
-   "f1": 0.9787
+   "accuracy": 1.0,
+   "f1": 1.0
   }
  },
  "llm_cost_usd": 0.215708,
@@ -172,7 +185,8 @@
      }
     },
     "sharpe": 1.191,
-    "seconds": 1.02
+    "static_findings": [],
+    "seconds": 2.25
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -290,7 +304,8 @@
      }
     },
     "sharpe": -1.795,
-    "seconds": 0.92
+    "static_findings": [],
+    "seconds": 1.76
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -401,7 +416,8 @@
      }
     },
     "sharpe": 0.629,
-    "seconds": 0.99
+    "static_findings": [],
+    "seconds": 1.6
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -510,7 +526,8 @@
      }
     },
     "sharpe": 0.947,
-    "seconds": 0.97
+    "static_findings": [],
+    "seconds": 1.7
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -619,7 +636,8 @@
      }
     },
     "sharpe": 1.013,
-    "seconds": 0.86
+    "static_findings": [],
+    "seconds": 1.72
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -735,7 +753,8 @@
      }
     },
     "sharpe": 0.977,
-    "seconds": 0.83
+    "static_findings": [],
+    "seconds": 2.16
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -846,7 +865,8 @@
      }
     },
     "sharpe": -0.673,
-    "seconds": 0.79
+    "static_findings": [],
+    "seconds": 2.43
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -962,7 +982,8 @@
      }
     },
     "sharpe": 1.106,
-    "seconds": 0.86
+    "static_findings": [],
+    "seconds": 2.04
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1071,7 +1092,8 @@
      }
     },
     "sharpe": 0.939,
-    "seconds": 0.98
+    "static_findings": [],
+    "seconds": 2.06
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1180,7 +1202,8 @@
      }
     },
     "sharpe": 0.704,
-    "seconds": 1.13
+    "static_findings": [],
+    "seconds": 1.62
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1289,7 +1312,8 @@
      }
     },
     "sharpe": 0.932,
-    "seconds": 0.91
+    "static_findings": [],
+    "seconds": 1.87
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1400,7 +1424,13 @@
      }
     },
     "sharpe": 1.259,
-    "seconds": 0.91
+    "static_findings": [
+     [
+      "negative_shift",
+      "critical"
+     ]
+    ],
+    "seconds": 1.79
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1516,7 +1546,8 @@
      }
     },
     "sharpe": 0.724,
-    "seconds": 0.78
+    "static_findings": [],
+    "seconds": 1.78
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1627,7 +1658,8 @@
      }
     },
     "sharpe": -0.257,
-    "seconds": 0.89
+    "static_findings": [],
+    "seconds": 1.9
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1736,7 +1768,8 @@
      }
     },
     "sharpe": 1.072,
-    "seconds": 0.92
+    "static_findings": [],
+    "seconds": 1.89
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1854,7 +1887,13 @@
      }
     },
     "sharpe": 4.118,
-    "seconds": 1.01
+    "static_findings": [
+     [
+      "negative_shift",
+      "critical"
+     ]
+    ],
+    "seconds": 2.94
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -1972,7 +2011,13 @@
      }
     },
     "sharpe": 8.894,
-    "seconds": 0.96
+    "static_findings": [
+     [
+      "centered_window",
+      "high"
+     ]
+    ],
+    "seconds": 2.25
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2035,19 +2080,21 @@
     "flagged": true,
     "error": "",
     "blocking": [
+     "future_perturbation",
      "survivorship",
      "static_scan"
     ],
     "failing": [
+     "future_perturbation",
      "survivorship",
      "static_scan"
     ],
     "tests": {
      "future_perturbation": {
-      "passed": true,
+      "passed": false,
       "severity": "critical",
-      "blocking": false,
-      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2021-01-01, max weight change 0.100)."
      },
      "survivorship": {
       "passed": false,
@@ -2087,7 +2134,13 @@
      }
     },
     "sharpe": 0.984,
-    "seconds": 0.88
+    "static_findings": [
+     [
+      "backward_fill",
+      "high"
+     ]
+    ],
+    "seconds": 2.93
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2181,7 +2234,7 @@
       "passed": true,
       "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (1 soft warning(s))."
+      "summary": "No blocking red flags (2 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -2203,7 +2256,17 @@
      }
     },
     "sharpe": 0.602,
-    "seconds": 0.81
+    "static_findings": [
+     [
+      "full_sample_statistic",
+      "medium"
+     ],
+     [
+      "time_axis_demean",
+      "medium"
+     ]
+    ],
+    "seconds": 2.75
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2320,7 +2383,13 @@
      }
     },
     "sharpe": 0.879,
-    "seconds": 0.81
+    "static_findings": [
+     [
+      "survivor_universe",
+      "high"
+     ]
+    ],
+    "seconds": 1.69
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2433,7 +2502,8 @@
      }
     },
     "sharpe": 0.783,
-    "seconds": 0.87
+    "static_findings": [],
+    "seconds": 1.5
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2525,9 +2595,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -2549,7 +2619,13 @@
      }
     },
     "sharpe": -0.018,
-    "seconds": 0.94
+    "static_findings": [
+     [
+      "time_axis_rank",
+      "medium"
+     ]
+    ],
+    "seconds": 2.35
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2638,9 +2714,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -2662,7 +2738,13 @@
      }
     },
     "sharpe": 1.974,
-    "seconds": 0.82
+    "static_findings": [
+     [
+      "reversed_time_window",
+      "medium"
+     ]
+    ],
+    "seconds": 1.89
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2738,7 +2820,7 @@
       "passed": false,
       "severity": "critical",
       "blocking": true,
-      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 2/6 cut dates (first leaking date 2022-05-16, max weight change 0.200)."
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 4/6 cut dates (first leaking date 2022-05-16, max weight change 0.200)."
      },
      "survivorship": {
       "passed": true,
@@ -2778,7 +2860,13 @@
      }
     },
     "sharpe": 5.631,
-    "seconds": 0.81
+    "static_findings": [
+     [
+      "backward_fill",
+      "high"
+     ]
+    ],
+    "seconds": 1.61
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2854,7 +2942,7 @@
       "passed": false,
       "severity": "critical",
       "blocking": true,
-      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.062). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.051). Changes reach the start of the sample -> full-sample statistic or survivor universe."
      },
      "survivorship": {
       "passed": false,
@@ -2870,9 +2958,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -2894,7 +2982,13 @@
      }
     },
     "sharpe": 0.55,
-    "seconds": 0.81
+    "static_findings": [
+     [
+      "reversed_time_window",
+      "medium"
+     ]
+    ],
+    "seconds": 1.69
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -2986,9 +3080,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -3010,7 +3104,13 @@
      }
     },
     "sharpe": -0.016,
-    "seconds": 0.91
+    "static_findings": [
+     [
+      "pooled_quantile",
+      "medium"
+     ]
+    ],
+    "seconds": 1.6
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3126,7 +3226,8 @@
      }
     },
     "sharpe": 7.349,
-    "seconds": 0.79
+    "static_findings": [],
+    "seconds": 1.63
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3241,7 +3342,8 @@
      }
     },
     "sharpe": 1.292,
-    "seconds": 0.8
+    "static_findings": [],
+    "seconds": 1.57
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3356,7 +3458,8 @@
      }
     },
     "sharpe": 1.261,
-    "seconds": 1.02
+    "static_findings": [],
+    "seconds": 2.58
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3432,7 +3535,7 @@
       "passed": false,
       "severity": "critical",
       "blocking": true,
-      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 5/6 cut dates (first leaking date 2019-03-27, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 4/6 cut dates (first leaking date 2019-03-27, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
      },
      "survivorship": {
       "passed": false,
@@ -3472,7 +3575,8 @@
      }
     },
     "sharpe": 0.644,
-    "seconds": 0.84
+    "static_findings": [],
+    "seconds": 1.74
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3586,7 +3690,13 @@
      }
     },
     "sharpe": -0.37,
-    "seconds": 0.91
+    "static_findings": [
+     [
+      "full_sample_statistic",
+      "medium"
+     ]
+    ],
+    "seconds": 1.82
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3678,9 +3788,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -3702,7 +3812,13 @@
      }
     },
     "sharpe": -0.019,
-    "seconds": 1.03
+    "static_findings": [
+     [
+      "time_axis_rank",
+      "medium"
+     ]
+    ],
+    "seconds": 1.61
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3795,7 +3911,7 @@
       "passed": true,
       "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (1 soft warning(s))."
+      "summary": "No blocking red flags (2 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -3817,7 +3933,17 @@
      }
     },
     "sharpe": 0.76,
-    "seconds": 1.03
+    "static_findings": [
+     [
+      "full_sample_statistic",
+      "medium"
+     ],
+     [
+      "time_axis_demean",
+      "medium"
+     ]
+    ],
+    "seconds": 1.78
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -3891,7 +4017,7 @@
       "passed": false,
       "severity": "critical",
       "blocking": true,
-      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 5/6 cut dates (first leaking date 2022-05-02, max weight change 0.100)."
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 4/6 cut dates (first leaking date 2022-05-02, max weight change 0.100)."
      },
      "survivorship": {
       "passed": true,
@@ -3907,9 +4033,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": false,
@@ -3931,7 +4057,13 @@
      }
     },
     "sharpe": 3.856,
-    "seconds": 0.99
+    "static_findings": [
+     [
+      "resample_start_label",
+      "medium"
+     ]
+    ],
+    "seconds": 1.59
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -4027,9 +4159,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -4051,7 +4183,13 @@
      }
     },
     "sharpe": 0.815,
-    "seconds": 0.97
+    "static_findings": [
+     [
+      "period_transform",
+      "medium"
+     ]
+    ],
+    "seconds": 1.59
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -4127,7 +4265,7 @@
       "passed": false,
       "severity": "critical",
       "blocking": true,
-      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 3/6 cut dates (first leaking date 2022-07-29, max weight change 0.125)."
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 4/6 cut dates (first leaking date 2022-07-29, max weight change 0.125)."
      },
      "survivorship": {
       "passed": true,
@@ -4167,7 +4305,13 @@
      }
     },
     "sharpe": 0.168,
-    "seconds": 0.9
+    "static_findings": [
+     [
+      "negative_shift",
+      "critical"
+     ]
+    ],
+    "seconds": 1.71
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -4259,9 +4403,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": false,
@@ -4283,7 +4427,13 @@
      }
     },
     "sharpe": 10.259,
-    "seconds": 0.79
+    "static_findings": [
+     [
+      "reversed_time_window",
+      "medium"
+     ]
+    ],
+    "seconds": 2.09
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -4376,7 +4526,7 @@
       "passed": true,
       "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (1 soft warning(s))."
+      "summary": "No blocking red flags (2 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -4398,7 +4548,17 @@
      }
     },
     "sharpe": 0.992,
-    "seconds": 0.84
+    "static_findings": [
+     [
+      "full_sample_imputation",
+      "medium"
+     ],
+     [
+      "full_sample_statistic",
+      "medium"
+     ]
+    ],
+    "seconds": 1.99
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {
@@ -4490,9 +4650,9 @@
      },
      "static_scan": {
       "passed": true,
-      "severity": "info",
+      "severity": "medium",
       "blocking": false,
-      "summary": "No blocking red flags (0 soft warning(s))."
+      "summary": "No blocking red flags (1 soft warning(s))."
      },
      "plausibility": {
       "passed": true,
@@ -4514,7 +4674,13 @@
      }
     },
     "sharpe": 0.325,
-    "seconds": 1.02
+    "static_findings": [
+     [
+      "pooled_quantile",
+      "medium"
+     ]
+    ],
+    "seconds": 1.99
    },
    "llm": {
     "nvidia/Nemotron-3-Ultra-550b-a55b": {

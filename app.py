@@ -8,6 +8,9 @@ from __future__ import annotations
 import difflib
 import html
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # our notebook.py wins over Jupyter's
 
 import numpy as np
 import pandas as pd
@@ -49,6 +52,9 @@ st.markdown("""
           border:1px solid #e5e7eb; border-radius:8px; overflow-x:auto; background:#fbfbfc; padding:6px 0;}
 .codeline {white-space:pre; padding:0 10px;}
 .codeline .ln {display:inline-block; width:2.6em; color:#9ca3af; user-select:none;}
+.codeline.flag-dynamic {background:#d64545; color:white; font-weight:600;}
+.codeline.flag-dynamic .ln {color:#fde8e8;}
+.codeline.flag-dynamic .flagnote {color:white;}
 .codeline.flag-critical {background:#fde8e8;}
 .codeline.flag-high {background:#fdf1dc;}
 .codeline.flag-medium {background:#fdf8e6;}
@@ -72,6 +78,22 @@ def real_panel():
     return load_real_panel()
 
 
+@st.cache_data(show_spinner=False)
+def leak_zoo() -> dict:
+    """LeakBench strategies as {label: code without the answer-key header}."""
+    try:
+        from bench.run_bench import load_strategies
+    except Exception:
+        return {}
+    out = {}
+    for sdef in load_strategies():
+        mark = "✗ leak" if sdef["label"] == "leaky" else "✓ honest"
+        name = sdef.get("name") or sdef.get("id")
+        bug = sdef.get("bug") or ""
+        out[f"{mark} · {name}" + (f" ({bug})" if bug and bug != "none" else "")] = sdef["stripped"]
+    return out
+
+
 def short_model(m: str) -> str:
     return m.split("/")[-1]
 
@@ -89,13 +111,16 @@ def pill(t: dict) -> str:
 def flagged_code_html(code: str, tests: list[dict]) -> str | None:
     """Source with the lines the static scan flagged highlighted (None when nothing is flagged)."""
     st_test = next((t for t in tests if t["name"] == "static_scan"), None)
-    findings = (st_test or {}).get("evidence", {}).get("findings", []) if st_test else []
+    findings = list((st_test or {}).get("evidence", {}).get("findings", []) if st_test else [])
+    loc = localized_entry(tests)
+    if loc:
+        findings.append({"line": loc["line"], "rule": "LEAK ENTERS HERE (proved by perturbation)", "severity": "dynamic"})
     if not findings:
         return None
     by_line: dict[int, list[dict]] = {}
     for f in findings:
         by_line.setdefault(int(f.get("line", 0)), []).append(f)
-    order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    order = {"dynamic": -1, "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     out = []
     for i, line in enumerate(code.splitlines(), start=1):
         fs = by_line.get(i)
@@ -107,6 +132,13 @@ def flagged_code_html(code: str, tests: list[dict]) -> str | None:
             note = '<span class="flagnote">◀ ' + html.escape("; ".join(f"{f.get('rule')} ({f.get('severity')})" for f in fs)) + "</span>"
         out.append(f'<div class="codeline{cls}"><span class="ln">{i}</span>{html.escape(line) or " "}{note}</div>')
     return '<div class="codebox">' + "".join(out) + "</div>"
+
+
+def localized_entry(tests: list[dict]) -> dict | None:
+    fp = next((t for t in tests if t["name"] == "future_perturbation" and not t["passed"]), None)
+    loc = ((fp or {}).get("evidence") or {}).get("localized") or {}
+    e = loc.get("entry") if loc.get("found") else None
+    return e if e and e.get("line") else None
 
 
 def leak_proof_chart(test: dict, data: dict) -> go.Figure | None:
@@ -234,6 +266,33 @@ with tab_audit:
         from agents.mock_strategies import LEAKY
         if "user_code" not in st.session_state:
             st.session_state["user_code"] = LEAKY["momentum"]
+        zoo = leak_zoo()
+        z1, z2 = st.columns([3, 1])
+        pick = z1.selectbox("Load an example from LeakBench (or paste your own below)", ["—"] + list(zoo),
+                            help="Labelled strategies from the benchmark. ✗ = has a leak, ✓ = honest. "
+                                 "The subtle ones (rank default axis, resample('MS').last()) fooled Nemotron as a judge.")
+        if z2.button("Load", width="stretch", disabled=(pick == "—")):
+            st.session_state["user_code"] = zoo[pick]
+            st.rerun()
+        up_nb = st.file_uploader("…or upload a research notebook / script (.ipynb or .py)", type=["ipynb", "py"],
+                                 help="Code cells are concatenated (magics skipped) and generate_signals is extracted "
+                                      "with the helpers, constants and imports it uses.")
+        if up_nb is not None and st.session_state.get("nb_loaded") != (up_nb.name, up_nb.size):
+            from notebook import extract_strategy
+            r = extract_strategy(up_nb.getvalue(), up_nb.name)
+            st.session_state["nb_loaded"] = (up_nb.name, up_nb.size)
+            if r.get("ok"):
+                st.session_state["user_code"] = r["code"]
+                st.session_state["nb_info"] = (f"Extracted from **{up_nb.name}**: " +
+                                               (f"{r['cell_count']} cells, `generate_signals` in cell {r['entry_cell']}; "
+                                                if r.get("is_notebook") else "") +
+                                               "kept " + ", ".join(f"`{k}`" for k in r.get("kept", [])) +
+                                               (f"; skipped {len(r['skipped'])} magic/invalid line(s)" if r.get("skipped") else ""))
+                st.rerun()
+            else:
+                st.error(r.get("error") or "Could not extract generate_signals from this file.")
+        if st.session_state.get("nb_info"):
+            st.caption(st.session_state["nb_info"])
         user_code = st.text_area("Strategy code: def generate_signals(data) -> weights DataFrame",
                                  key="user_code", height=260)
     run = st.button("Run audit loop", type="primary")
@@ -279,6 +338,10 @@ def render_iteration(it: dict, models: dict, expanded: bool):
                 st.code(it["code"], language="python")
         if blocking:
             with st.expander("Failing test evidence", expanded=expanded):
+                loc = localized_entry(tests)
+                if loc:
+                    st.markdown(f"🎯 **Leak enters at line {loc['line']}** (found by experiment: the first value that changes "
+                                f"when only the future changes): `{loc.get('source_line', '').strip()}`")
                 for t in blocking:
                     st.markdown(f"**{t['name']}** ({t['severity']}): {t['summary']}")
                 pert = next((t for t in blocking if t["name"] == "future_perturbation"), None)

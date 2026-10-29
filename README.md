@@ -35,10 +35,10 @@ found later, with real money. Asking another LLM "is this code correct?" is not 
 
 | Test | What it proves | Blocking? |
 |---|---|---|
-| **Future-perturbation** | For random cut dates *t*, all data after *t* is scrambled (returns shuffled, sign-flipped and noised; some tickers delisted). Signals at dates ≤ *t* must be bit-identical. Reports the first leaking date and the size of the weight change. | critical |
+| **Future-perturbation** | For random cut dates *t*, all data after *t* is scrambled (returns shuffled, sign-flipped and noised; some tickers delisted, others get short NaN gaps, and names already delisted at *t* trade again, so a `bfill`/`interpolate` over a missing stretch pulls post-*t* values into the past). Signals at dates ≤ *t* must be bit-identical. Reports the first leaking date and the size of the weight change. | critical |
 | **Survivorship** | (a) no weight on tickers before they list; (b) counterfactual where delisted names keep trading: past signals must not change; (c) warns when the dataset has no delisted names at all. | critical / high |
 | **Execution delay** | Sharpe at t+1 vs t+2. A collapse of more than 25% from a Sharpe above 1 points to same-bar or look-ahead execution. | high |
-| **Static AST scan** | `.shift(-n)`, `pct_change(-n)`, `diff(-n)`, `rolling(center=True)`, `bfill`/`backfill`, `dropna(axis=1)`, full-sample `mean()/std()` normalisation, `interpolate`. | critical/high rules block, others warn |
+| **Static AST scan** | `.shift(-n)`, `pct_change(-n)`, `diff(-n)`, `rolling(center=True)`, `bfill`/`backfill`, `dropna(axis=1)`, full-sample `mean()/std()` normalisation, `interpolate`; plus pandas default-axis traps as non-blocking hints: `rank()` without `axis`, `X.sub(X.mean(), axis=1)` / `X - X.mean()`, `fillna(X.mean())`, start-labelled `resample('MS').last()`, `groupby(month).transform('last')`, rolling/cum* on a newest-first index, `pd.qcut`/`quantile` on a stacked panel. | critical/high rules block, others warn |
 | **Deflated Sharpe Ratio** | Bailey & López de Prado (2014): the probability that the Sharpe beats the expected maximum of *N* unskilled trials, where *N* = loop iterations so far; corrects for skew and kurtosis. | warning |
 | **Train/test split** | 70/30 Sharpe degradation. | warning |
 | **Plausibility** | Sharpe above 3 after costs on daily equities is treated as a bug until shown otherwise. | warning |
@@ -148,6 +148,22 @@ Both LLM judges were perfect on the textbook bugs and missed the same subtle pan
 catches by experiment. Full table and every wrong verdict with the model's reasoning: [`bench/RESULTS.md`](bench/RESULTS.md).
 Rerun offline from the cache with `python -m bench.run_bench` (the live run cost $0.22).
 Caveat: benchmark and auditor were written by the same author on synthetic data; treat it as a set of realistic bug patterns.
+
+## Dynamic leak localization: which line reads the future?
+
+When the perturbation test fails, Backtest Auditor re-runs the strategy with every assignment instrumented (inside the
+same sandbox) on the original and the perturbed data, and reports the **first statement whose value changes although
+nothing it reads changed**: the exact line where future information enters. This works even where code review fails:
+on LeakBench it pins the right line for **24/24** leaky strategies (including `rank()` on the time axis,
+`sub(mean(), axis=1)`, `resample("MS").last()` and newest-first rolling windows, which both Nemotron judges missed)
+and reports no leak for 15/15 clean ones. The line is highlighted in the UI, annotated in CI, and handed to the
+Nemotron Auditor ("Leak enters at line 13: `pctl = mom.rank(pct=True)`"). See `bench/LOCALIZE.md`.
+
+## Jupyter notebooks
+
+Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
+is extracted with the helpers, constants and imports it uses, and findings point at "cell 10, line 4".
+`examples/leaky_research.ipynb` is a realistic leaky research notebook.
 
 ## Use it in CI
 

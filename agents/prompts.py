@@ -85,9 +85,27 @@ def compact_tests(tests: list[dict], include_passed: bool = True) -> str:
         ev = dict(t.get("evidence", {}))
         if "cuts" in ev:  # keep the payload small: only leaking cuts
             ev["cuts"] = [c for c in ev["cuts"] if c.get("leaked")][:3]
+        if isinstance(ev.get("localized"), dict):  # dynamic localization: entry + chain only, no per-line table
+            lz = ev["localized"]
+            ev["localized"] = {k: lz[k] for k in ("found", "entry", "error") if k in lz}
+            if lz.get("chain"):
+                ev["localized"]["chain"] = [f"line {c['line']}: {c['source_line']}" for c in lz["chain"][:8]]
         slim.append({"name": t["name"], "passed": t["passed"], "severity": t["severity"],
                      "summary": t["summary"], "evidence": ev, "suggested_fix": t.get("suggested_fix", "")})
     return json.dumps(slim, indent=1, default=str)
+
+
+def localized_hint(tests: list[dict]) -> str:
+    """'Leak enters at line N: `...`' from the future-perturbation evidence (audit/localize.py), or ''."""
+    from audit.localize import localized_message
+    for t in tests:
+        if t.get("name") == "future_perturbation" and not t.get("passed"):
+            msg = localized_message((t.get("evidence") or {}).get("localized"))
+            if msg:
+                return ("\n\nDynamic leak localization (deterministic: the strategy was traced line by line on the "
+                        "original and the future-scrambled data; this is the first statement whose past values "
+                        "changed):\n" + msg)
+    return ""
 
 
 def fmt_metrics(m: dict) -> str:

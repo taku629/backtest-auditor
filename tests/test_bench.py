@@ -54,6 +54,8 @@ def test_deterministic_suite_matches_label(panel, sid):
         assert d["flagged"], f"{sid}: leaky strategy passed every blocking test"
         # every leak in the bench is caught by a dynamic test, not only by the static scan
         assert set(d["blocking"]) - {"static_scan"}, (sid, d["blocking"])
+        # since the post-cut gap/relisting perturbation, future-perturbation alone catches every leak (incl. L03 bfill)
+        assert "future_perturbation" in d["blocking"], (sid, d["blocking"])
     else:
         assert not d["flagged"], f"{sid}: clean strategy flagged by {d['blocking']}"
 

@@ -73,12 +73,15 @@ def _copy(data: dict) -> dict:
     return {k: data[k].copy() for k in FIELDS}
 
 
-def perturb_after(data: dict, cut_pos: int, rng: np.random.Generator, n_kill: int = 3) -> dict:
+def perturb_after(data: dict, cut_pos: int, rng: np.random.Generator, n_kill: int = 3,
+                  n_gaps: int = 3, n_relist: int = 2) -> dict:
     """Return a copy whose rows <= cut_pos are bit-identical and rows after are scrambled.
 
     After the cut: returns are time-shuffled, sign-flipped per ticker and noised;
     OHLC are rescaled consistently; volume is noised; a few live tickers are
-    'delisted' shortly after the cut (tests universe/survivorship dependence).
+    'delisted' shortly after the cut (tests universe/survivorship dependence);
+    a few others get short NaN gaps, and a few names that were already delisted
+    at the cut trade again for a while (exposes back-fill / interpolation leaks).
     """
     out = _copy(data)
     close = data["close"]
@@ -100,12 +103,46 @@ def perturb_after(data: dict, cut_pos: int, rng: np.random.Generator, n_kill: in
     vol[cut_pos + 1:] = vol[cut_pos + 1:] * rng.lognormal(0, 0.5, size=(m, N))
     out["volume"] = pd.DataFrame(vol, index=close.index, columns=close.columns)
     alive = np.where(close.iloc[cut_pos].notna().to_numpy())[0]
+    kill = np.array([], dtype=int)
     if len(alive) and n_kill > 0 and m > 3:
         kill = rng.choice(alive, size=min(n_kill, len(alive)), replace=False)
         for f in FIELDS:
             arr = out[f].to_numpy(copy=True)
             arr[cut_pos + 3:, kill] = np.nan
             out[f] = pd.DataFrame(arr, index=close.index, columns=close.columns)
+    # Missing-data shapes that only exist after the cut, so rows <= cut_pos stay bit-identical and honest
+    # code is unaffected, while code that fills a gap from LATER values (bfill, interpolate,
+    # reindex(method='bfill'/'nearest')) now pulls post-cut values into rows <= cut:
+    #  (a) gaps: a few surviving tickers lose a short run of bars inside the post-cut window;
+    #  (b) relisting: a few names already gone at the cut trade again for a while after it, so the
+    #      NaN stretch between their delisting and the cut gets back-filled / interpolated from the future.
+    arrs = {f: out[f].to_numpy(copy=True) for f in FIELDS}
+    changed = False
+    survivors = np.setdiff1d(alive, kill)
+    if n_gaps > 0 and len(survivors) and m > 8:
+        for j in rng.choice(survivors, size=min(n_gaps, len(survivors)), replace=False):
+            length = int(rng.integers(1, 6))
+            start = cut_pos + 1 + int(rng.integers(0, max(1, min(m - length - 1, 40))))
+            for f in FIELDS:
+                arrs[f][start:start + length, j] = np.nan
+            changed = True
+    c_np = close.to_numpy()
+    gone = [j for j in range(N) if np.isnan(c_np[cut_pos, j]) and np.isfinite(c_np[:cut_pos, j]).any()]
+    if n_relist > 0 and gone and m > 8:
+        for j in rng.choice(gone, size=min(n_relist, len(gone)), replace=False):
+            start = cut_pos + 1 + int(rng.integers(0, 5))
+            length = min(int(rng.integers(20, 61)), T - start)
+            if length <= 0:
+                continue
+            last = c_np[:cut_pos + 1, j][np.isfinite(c_np[:cut_pos + 1, j])][-1]
+            path = last * np.cumprod(1 + 0.02 * rng.standard_normal(length))
+            for f in ("open", "high", "low", "close"):
+                arrs[f][start:start + length, j] = path
+            v = data["volume"].to_numpy()[:, j]
+            arrs["volume"][start:start + length, j] = float(np.nanmedian(v)) if np.isfinite(v).any() else 1.0
+            changed = True
+    if changed:
+        out = {f: pd.DataFrame(arrs[f], index=close.index, columns=close.columns) for f in FIELDS}
     return out
 
 
@@ -346,7 +383,7 @@ def in_process_executor(fn: Callable[[dict], pd.DataFrame]) -> Executor:
 
 def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_trials: int = 1,
               trial_sharpes: list[float] | None = None, cost_bps: float = 10.0, execution: str = "open",
-              n_cuts: int = 6, seed: int = 7) -> AuditReport:
+              n_cuts: int = 6, seed: int = 7, localize: bool = True) -> AuditReport:
     close = data["close"]
     cuts = choose_cuts(len(close), n_cuts, seed)
     rng = np.random.default_rng(seed + 1)
@@ -385,6 +422,15 @@ def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_tria
         st_t.severity = "medium"
         st_t.summary += (" Downgraded to a warning: the perturbation and survivorship tests show these patterns "
                          "do not change any past signal. Review them anyway.")
+    fp_t = by["future_perturbation"]
+    if localize and code and not fp_t.passed:  # pinpoint the line where future data enters (audit/localize.py)
+        try:
+            from audit.localize import localize_leak
+            leak_pos = [int(close.index.get_loc(c["cut_date"])) for c in fp_t.evidence.get("cuts", []) if c.get("leaked")]
+            fp_t.evidence["localized"] = localize_leak(code, data, cut_positions=leak_pos or None, seed=seed,
+                                                       n_cuts=n_cuts)
+        except Exception as e:  # noqa: BLE001 - localization is best-effort evidence, never breaks the audit
+            fp_t.evidence["localized"] = {"found": False, "error": f"{type(e).__name__}: {e}"[:500]}
     if bt1.metrics["avg_gross"] == 0:
         tests.append(TestResult("non_trivial", False, "high", "Strategy never takes a position.",
                                 {}, "Return non-zero target weights."))

@@ -1,6 +1,6 @@
 # LeakBench results
 
-Generated 2026-10-29 02:53 UTC · 39 strategies (24 leaky, 15 clean) · data: synthetic panel 50 tickers × 1512 days, seed 51.
+Generated 2026-10-29 03:39 UTC · 39 strategies (24 leaky, 15 clean) · data: synthetic panel 50 tickers × 1512 days, seed 51.
 
 Positive class = **leaky**. *Recall* = share of leaky strategies flagged; *FPR* = share of clean strategies wrongly flagged. The LLM judges saw only the code (LeakBench header stripped) and the engine contract (row t is decided after the close of t and executed at t+1).
 
@@ -19,8 +19,9 @@ LLM judge cost for this results file: $0.2157 (new calls this run: $0.0000; cach
 | Subset of the suite | Recall | FPR |
 |---|---|---|
 | Static AST scan alone | 25% | 0% |
+| Static AST scan, any finding incl. non-blocking hints | 79% | 7% |
 | Dynamic tests alone (no AST scan) | 100% | 0% |
-| Future-perturbation test alone | 96% | 0% |
+| Future-perturbation test alone | 100% | 0% |
 
 ## Per strategy
 
@@ -45,7 +46,7 @@ LLM judge cost for this results file: $0.2157 (new calls this run: $0.0000; cach
 | `C15_resample_me_last` | clean | none | ✅ pass | ✅ clean | ✅ clean |
 | `L01_shift_minus_one` | leaky | negative_shift | ✅ flagged: future_perturbation, execution_delay, static_scan | ✅ leaky | ✅ leaky |
 | `L02_centred_rolling` | leaky | centred_window | ✅ flagged: future_perturbation, survivorship, static_scan | ✅ leaky | ✅ leaky |
-| `L03_bfill_prices` | leaky | backward_fill | ✅ flagged: survivorship, static_scan | ✅ leaky | ✅ leaky |
+| `L03_bfill_prices` | leaky | backward_fill | ✅ flagged: future_perturbation, survivorship, static_scan | ✅ leaky | ✅ leaky |
 | `L04_fullsample_zscore` | leaky | full_sample_normalisation | ✅ flagged: future_perturbation, survivorship | ✅ leaky | ✅ leaky |
 | `L05_dropna_universe` | leaky | survivor_universe | ✅ flagged: future_perturbation, survivorship, static_scan | ✅ leaky | ✅ leaky |
 | `L06_select_by_final_return` | leaky | selection_on_future_performance | ✅ flagged: future_perturbation | ✅ leaky | ✅ leaky |
