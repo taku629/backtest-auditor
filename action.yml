@@ -1,0 +1,114 @@
+name: "Backtest Auditor"
+description: "Deterministic look-ahead / survivorship audit of trading-strategy code (generate_signals(data) -> weights). No LLM or API key needed."
+author: "taku629"
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  paths:
+    description: "Strategy files or globs, separated by spaces or newlines (globs are expanded by the auditor, ** allowed)."
+    required: true
+  fail-on:
+    description: "Fail when a test of this severity or worse fails: critical | high | warning."
+    required: false
+    default: "high"
+  format:
+    description: "Report format printed to the log: text | markdown | json | sarif."
+    required: false
+    default: "text"
+  data:
+    description: "'synthetic' (seeded panel with delisted names and IPOs) or 'csv:PATH' (long format: date,ticker,close[,open,high,low,volume])."
+    required: false
+    default: "synthetic"
+  upload-sarif:
+    description: "Upload SARIF to GitHub code scanning so offending lines are annotated in PRs (needs permissions: security-events: write)."
+    required: false
+    default: "true"
+  sarif-category:
+    description: "Code scanning category (use different values when the action runs more than once per workflow)."
+    required: false
+    default: "backtest-auditor"
+  python-version:
+    description: "Python version to set up."
+    required: false
+    default: "3.11"
+  extra-args:
+    description: "Extra arguments for audit_cli.py, e.g. '--seed 11 --n-cuts 8' or '--fix' (with NEBIUS_API_KEY in env)."
+    required: false
+    default: ""
+
+outputs:
+  exit-code:
+    description: "0 = passed, 1 = a test at or above fail-on failed, 2 = usage error."
+    value: ${{ steps.audit.outputs.exit-code }}
+  sarif-file:
+    description: "Path of the SARIF 2.1.0 file."
+    value: ${{ steps.audit.outputs.sarif-file }}
+  report-file:
+    description: "Path of the report in the chosen format."
+    value: ${{ steps.audit.outputs.report-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: "pip"
+        cache-dependency-path: ${{ github.action_path }}/requirements.txt
+
+    - name: Install Backtest Auditor dependencies
+      shell: bash
+      run: python -m pip install --disable-pip-version-check -q -r "$GITHUB_ACTION_PATH/requirements.txt"
+
+    - name: Run deterministic audit
+      id: audit
+      shell: bash
+      env:
+        BTA_PATHS: ${{ inputs.paths }}
+        BTA_FAIL_ON: ${{ inputs.fail-on }}
+        BTA_FORMAT: ${{ inputs.format }}
+        BTA_DATA: ${{ inputs.data }}
+        BTA_EXTRA: ${{ inputs.extra-args }}
+      run: |
+        set -f                      # let audit_cli.py expand globs (supports **), not bash
+        out_dir="${RUNNER_TEMP:-/tmp}/backtest-auditor"
+        mkdir -p "$out_dir"
+        sarif="$out_dir/results.sarif"
+        report="$out_dir/report.${BTA_FORMAT}"
+        read -r -d '' -a paths <<< "$BTA_PATHS" || true
+        read -r -a extra <<< "$BTA_EXTRA" || true
+        set +e
+        python "$GITHUB_ACTION_PATH/audit_cli.py" "${paths[@]}" \
+          --data "$BTA_DATA" --fail-on "$BTA_FAIL_ON" --format "$BTA_FORMAT" \
+          --sarif-out "$sarif" --out "$report" "${extra[@]}"
+        code=$?
+        set -e
+        cat "$report" 2>/dev/null || true
+        {
+          echo "exit-code=$code"
+          echo "sarif-file=$sarif"
+          echo "report-file=$report"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ always() && inputs.upload-sarif == 'true' && steps.audit.outputs.sarif-file != '' }}
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true      # e.g. PRs from forks have no security-events: write
+      with:
+        sarif_file: ${{ steps.audit.outputs.sarif-file }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Enforce fail-on
+      shell: bash
+      env:
+        CODE: ${{ steps.audit.outputs.exit-code }}
+        BTA_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        if [ "$CODE" != "0" ]; then
+          echo "Backtest Auditor: failing tests at or above '$BTA_FAIL_ON' (exit $CODE)."
+          exit "$CODE"
+        fi
+        echo "Backtest Auditor: all strategies passed (fail-on: $BTA_FAIL_ON)."

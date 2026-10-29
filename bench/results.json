@@ -1,0 +1,4570 @@
+{
+ "benchmark": "LeakBench",
+ "version": 1,
+ "prompt_version": "v1",
+ "generated_at": "2026-10-29 02:53 UTC",
+ "data": {
+  "source": "data.synthetic.generate_panel()",
+  "seed": 51,
+  "n_tickers": 50,
+  "n_dates": 1512
+ },
+ "executor": "sandbox",
+ "n_strategies": 39,
+ "n_leaky": 24,
+ "n_clean": 15,
+ "methods": [
+  "deterministic",
+  "llm:nvidia/Nemotron-3-Ultra-550b-a55b",
+  "llm:nvidia/nemotron-3-super-120b-a12b"
+ ],
+ "method_labels": {
+  "deterministic": "Deterministic audit",
+  "llm:nvidia/Nemotron-3-Ultra-550b-a55b": "LLM-only: Nemotron Ultra",
+  "llm:nvidia/nemotron-3-super-120b-a12b": "LLM-only: Nemotron Super"
+ },
+ "metrics": {
+  "deterministic": {
+   "n": 39,
+   "tp": 24,
+   "fn": 0,
+   "fp": 0,
+   "tn": 15,
+   "unanswered": 0,
+   "recall": 1.0,
+   "false_positive_rate": 0.0,
+   "precision": 1.0,
+   "accuracy": 1.0,
+   "f1": 1.0
+  },
+  "llm:nvidia/Nemotron-3-Ultra-550b-a55b": {
+   "n": 39,
+   "tp": 20,
+   "fn": 4,
+   "fp": 2,
+   "tn": 13,
+   "unanswered": 0,
+   "recall": 0.8333,
+   "false_positive_rate": 0.1333,
+   "precision": 0.9091,
+   "accuracy": 0.8462,
+   "f1": 0.8696
+  },
+  "llm:nvidia/nemotron-3-super-120b-a12b": {
+   "n": 39,
+   "tp": 21,
+   "fn": 3,
+   "fp": 0,
+   "tn": 15,
+   "unanswered": 0,
+   "recall": 0.875,
+   "false_positive_rate": 0.0,
+   "precision": 1.0,
+   "accuracy": 0.9231,
+   "f1": 0.9333
+  }
+ },
+ "ablations": {
+  "static_scan_only": {
+   "n": 39,
+   "tp": 6,
+   "fn": 18,
+   "fp": 0,
+   "tn": 15,
+   "unanswered": 0,
+   "recall": 0.25,
+   "false_positive_rate": 0.0,
+   "precision": 1.0,
+   "accuracy": 0.5385,
+   "f1": 0.4
+  },
+  "dynamic_tests_only": {
+   "n": 39,
+   "tp": 24,
+   "fn": 0,
+   "fp": 0,
+   "tn": 15,
+   "unanswered": 0,
+   "recall": 1.0,
+   "false_positive_rate": 0.0,
+   "precision": 1.0,
+   "accuracy": 1.0,
+   "f1": 1.0
+  },
+  "future_perturbation_only": {
+   "n": 39,
+   "tp": 23,
+   "fn": 1,
+   "fp": 0,
+   "tn": 15,
+   "unanswered": 0,
+   "recall": 0.9583,
+   "false_positive_rate": 0.0,
+   "precision": 1.0,
+   "accuracy": 0.9744,
+   "f1": 0.9787
+  }
+ },
+ "llm_cost_usd": 0.215708,
+ "llm_cost_usd_this_run": 0.0,
+ "judge_prompt": {
+  "system": "You are a senior quantitative researcher reviewing backtest code for correctness. You answer with a single JSON object and nothing else.",
+  "user_template": "Review this trading strategy written for a daily equity backtester.\n\nEngine contract:\n- data[\"open\"|\"high\"|\"low\"|\"close\"|\"volume\"] are DataFrames (rows = trading dates in ascending order, columns = tickers). NaN means the ticker is not listed on that date (IPOs start late, some tickers are delisted and stop early).\n- generate_signals(data) returns target weights with the same shape. Row t is a decision made after the close of day t; the engine executes it at the next bar (t+1), so using data up to and including the close of day t in row t is legitimate.\n\nQuestion: Does this backtest strategy code use future information (look-ahead bias) or have survivorship bias?\n\n```python\n{code}\n```\n\nAnswer with JSON only: {{\"leaky\": true or false, \"reason\": \"<one or two sentences>\"}}",
+  "max_tokens": 3000,
+  "temperature": 0.0
+ },
+ "notes": [],
+ "strategies": [
+  {
+   "id": "C01_momentum_12_1",
+   "file": "bench/strategies/C01_momentum_12_1.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Cross-sectional 12-1 momentum, monthly rebalance, ffill hold.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.19 at t+1 vs 1.19 at t+2 (drop 0%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.19 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.93 vs test 1.78 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.191,
+    "seconds": 1.02
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:23+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009424,
+       "latency_s": 12.71,
+       "prompt_tokens": 424,
+       "thinking": true
+      },
+      {
+       "completion_tokens": 79,
+       "cost_usd": 0.000661,
+       "latency_s": 0.9,
+       "prompt_tokens": 424,
+       "thinking": false
+      }
+     ],
+     "completion_tokens": 3079,
+     "cost_usd": 0.010085,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 848,
+     "raw_tail": "",
+     "reason": "The code uses only past data (shifted close prices) to compute momentum and ranks, and the monthly rebalance logic correctly applies weights starting the day after the decision date via forward-fill. No future information is accessed, and the 'listed' mask prevents survivorship bias by excluding delisted or not-yet-listed tickers.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:13+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1435,
+       "cost_usd": 0.001419,
+       "latency_s": 15.46,
+       "prompt_tokens": 424,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1435,
+     "cost_usd": 0.001419,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 424,
+     "raw_tail": "",
+     "reason": "The signal relies only on lagged close prices (shifted 21 and 252 days) and the current listing indicator; no future data is accessed, and delisted or not\u2011yet\u2011listed stocks are correctly masked out.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C02_same_bar_reversal",
+   "file": "bench/strategies/C02_same_bar_reversal.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none (same-bar disguise)",
+   "note": "Uses today's close-to-close return in today's signal. Not a leak: row t is a decision after the close of t and the engine executes at t+1.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -1.79 at t+1 vs -1.53 at t+2 (drop -15%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -1.79 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.00 < 0.95 after 1 trial(s): observed Sharpe -1.79 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -1.95 vs test -1.39 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -1.795,
+    "seconds": 0.92
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:13+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 605,
+       "cost_usd": 0.002175,
+       "latency_s": 3.45,
+       "prompt_tokens": 360,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 605,
+     "cost_usd": 0.002175,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 360,
+     "raw_tail": "",
+     "reason": "The strategy computes today's returns from today's close (known at day t), ranks only currently listed tickers, and selects the 5 worst performers; no future data is used and delisted/unlisted tickers are properly excluded via the listed mask.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:07+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 639,
+       "cost_usd": 0.000683,
+       "latency_s": 9.65,
+       "prompt_tokens": 360,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 639,
+     "cost_usd": 0.000683,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 360,
+     "raw_tail": "",
+     "reason": "The signal uses only today's close and the prior day's close to compute today's return, which is known at the close of day t. Ranking and selection are based on this information and properly exclude missing (unlisted) prices, so no look\u2011ahead or survivorship bias is introduced.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C03_low_vol",
+   "file": "bench/strategies/C03_low_vol.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Trailing 60-day volatility, 10 least volatile names.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.63 at t+1 vs 0.62 at t+2 (drop 1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.63 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.93 < 0.95 after 1 trial(s): observed Sharpe 0.63 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.21 vs test 1.75 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.629,
+    "seconds": 0.99
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:19+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2647,
+       "cost_usd": 0.008317,
+       "latency_s": 9.61,
+       "prompt_tokens": 376,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2647,
+     "cost_usd": 0.008317,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 376,
+     "raw_tail": "",
+     "reason": "The strategy uses only data up to day t (including close[t]) to compute volatility and select stocks, and masks with the current listed universe, avoiding look-ahead and survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:08+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 819,
+       "cost_usd": 0.00085,
+       "latency_s": 10.99,
+       "prompt_tokens": 376,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 819,
+     "cost_usd": 0.00085,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 376,
+     "raw_tail": "",
+     "reason": "The signal uses only close prices up to and including day t (pct_change and rolling std with min_periods=60) and masks to currently listed tickers, so no future information is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C04_ma_crossover",
+   "file": "bench/strategies/C04_ma_crossover.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "50/200 moving-average crossover per ticker, trailing windows.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.95 at t+1 vs 0.98 at t+2 (drop -3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.95 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.98 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.69 vs test 1.61 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.947,
+    "seconds": 0.97
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:12+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 344,
+       "cost_usd": 0.001405,
+       "latency_s": 2.49,
+       "prompt_tokens": 373,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 344,
+     "cost_usd": 0.001405,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 373,
+     "raw_tail": "",
+     "reason": "The strategy uses only historical data up to day t (including day t's close) to compute moving averages and generate signals for execution at t+1, with proper handling of NaN for unlisted stocks.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:07+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 636,
+       "cost_usd": 0.000684,
+       "latency_s": 9.63,
+       "prompt_tokens": 373,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 636,
+     "cost_usd": 0.000684,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 373,
+     "raw_tail": "",
+     "reason": "The signal uses only prices up to and including the close of day t (rolling means with min_periods equal to the window length) and excludes stocks only after their price becomes NaN, so no future information or survivorship bias is introduced.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C05_vol_target",
+   "file": "bench/strategies/C05_vol_target.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Momentum book scaled to 10% target vol using lagged realised vol (shift(1) looks suspicious but is backward-looking).",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.01 at t+1 vs 1.02 at t+2 (drop -1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.01 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.65 vs test 1.91 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.013,
+    "seconds": 0.86
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:22+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009474,
+       "latency_s": 12.54,
+       "prompt_tokens": 474,
+       "thinking": true
+      },
+      {
+       "completion_tokens": 87,
+       "cost_usd": 0.000735,
+       "latency_s": 0.63,
+       "prompt_tokens": 474,
+       "thinking": false
+      }
+     ],
+     "completion_tokens": 3087,
+     "cost_usd": 0.010209,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 948,
+     "raw_tail": "",
+     "reason": "All calculations use only data available through the close of day t: momentum uses a 60-day lookback on past closes, ranking is cross-sectional on that day, and the volatility scaler uses a rolling standard deviation of historical portfolio returns up to day t. The weights for day t are applied at t+1 by the engine, so no future information is used.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:23+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2980,
+       "cost_usd": 0.002824,
+       "latency_s": 26.27,
+       "prompt_tokens": 474,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2980,
+     "cost_usd": 0.002824,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 474,
+     "raw_tail": "",
+     "reason": "All computations rely on data known at or before the close of the day for which weights are generated; no future prices or returns are used.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C06_expanding_zscore",
+   "file": "bench/strategies/C06_expanding_zscore.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Per-ticker z-score with expanding mean/std (looks like full-sample normalisation, but is point-in-time).",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.98 at t+1 vs 0.91 at t+2 (drop 7%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.98 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.73 vs test 1.65 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.977,
+    "seconds": 0.83
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:12+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 276,
+       "cost_usd": 0.00123,
+       "latency_s": 2.32,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 276,
+     "cost_usd": 0.00123,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The strategy uses only historical data up to day t via expanding windows (mean/std) and cross-sectional ranking, with proper masking for unlisted stocks; no future information is accessed.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:08+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 795,
+       "cost_usd": 0.000836,
+       "latency_s": 10.66,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 795,
+     "cost_usd": 0.000836,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The signal is constructed solely from close prices up to and including day t (using pct_change, expanding statistics, and a listedness mask), so no future data is accessed; delisted or unlisted stocks are excluded, avoiding survivorship bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C07_ffill_rolling",
+   "file": "bench/strategies/C07_ffill_rolling.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Forward-filled prices and a trailing (non-centred) rolling mean; masked to listed names.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.67 at t+1 vs -0.77 at t+2 (drop 15%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.67 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.05 < 0.95 after 1 trial(s): observed Sharpe -0.67 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.90 vs test -0.09 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.673,
+    "seconds": 0.79
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:21+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009387,
+       "latency_s": 11.06,
+       "prompt_tokens": 387,
+       "thinking": true
+      },
+      {
+       "completion_tokens": 67,
+       "cost_usd": 0.000588,
+       "latency_s": 0.96,
+       "prompt_tokens": 387,
+       "thinking": false
+      }
+     ],
+     "completion_tokens": 3067,
+     "cost_usd": 0.009975,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 774,
+     "raw_tail": "",
+     "reason": "The code uses only data available up to the close of day t (close prices, rolling mean, rank) and correctly masks with the 'listed' flag so delisted/IPO tickers are excluded; ffill carries the last known price but does not introduce future information.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:10+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1152,
+       "cost_usd": 0.001153,
+       "latency_s": 13.19,
+       "prompt_tokens": 387,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1152,
+     "cost_usd": 0.001153,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 387,
+     "raw_tail": "",
+     "reason": "The signal uses only close prices up to day t (forward\u2011filled for missing values) and a rolling mean that depends on past 20 days; selection is further masked by the same\u2011day listed flag, so no future data is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C08_cross_sectional_zscore",
+   "file": "bench/strategies/C08_cross_sectional_zscore.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "z-score across tickers on each date (mean/std with axis=1) - looks like normalisation, but is cross-sectional.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.11 at t+1 vs 1.04 at t+2 (drop 6%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.11 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.85 vs test 1.71 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.106,
+    "seconds": 0.86
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:12+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 450,
+       "cost_usd": 0.001724,
+       "latency_s": 3.02,
+       "prompt_tokens": 374,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 450,
+     "cost_usd": 0.001724,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 374,
+     "raw_tail": "",
+     "reason": "The signal uses only close prices up to day t (via pct_change(20)) and cross-sectional statistics computed at day t; no future data is referenced. The .where(listed) filter respects the NaN structure of the input data at each date, avoiding survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:06+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 486,
+       "cost_usd": 0.00055,
+       "latency_s": 8.38,
+       "prompt_tokens": 374,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 486,
+     "cost_usd": 0.00055,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 374,
+     "raw_tail": "",
+     "reason": "The signal uses only close prices up to and including day t (20\u2011day return, mean, std) and does not incorporate any future data; missing data due to IPOs/delists are handled by ignoring them in cross\u2011sectional statistics, so there is no look\u2011ahead or survivorship bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C09_weekly_resample_ffill",
+   "file": "bench/strategies/C09_weekly_resample_ffill.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Friday portfolio from resample('W-FRI').last(), forward-filled onto the following week (causal).",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.94 at t+1 vs 1.00 at t+2 (drop -7%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.94 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.59 vs test 1.84 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.939,
+    "seconds": 0.98
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:23+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009407,
+       "latency_s": 13.42,
+       "prompt_tokens": 407,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 3000,
+     "cost_usd": 0.009407,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 407,
+     "raw_tail": "",
+     "reason": "",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:14+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1540,
+       "cost_usd": 0.001508,
+       "latency_s": 16.58,
+       "prompt_tokens": 407,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1540,
+     "cost_usd": 0.001508,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 407,
+     "raw_tail": "",
+     "reason": "The signal uses only historical close prices up to each day's close to compute 20\u2011day momentum and ranks, and rebalances based on Friday's close; no future data is accessed, so there is no look\u2011ahead or survivorship bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C10_monthly_first_transform",
+   "file": "bench/strategies/C10_monthly_first_transform.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "groupby(month).transform('first') holds the first trading day's portfolio for the month (causal; 'last' would leak).",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.70 at t+1 vs 0.71 at t+2 (drop -1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.70 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.95 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.47 vs test 1.33 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.704,
+    "seconds": 1.13
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:18+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2427,
+       "cost_usd": 0.00768,
+       "latency_s": 9.25,
+       "prompt_tokens": 399,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2427,
+     "cost_usd": 0.00768,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 399,
+     "raw_tail": "",
+     "reason": "The code computes 60-day volatility using only past and current closes, ranks cross-sectionally at each date, and forward-fills the first trading day's weights within each month; no future data is referenced, and the listed mask correctly handles IPOs/delistings without adding survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:13+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1352,
+       "cost_usd": 0.001336,
+       "latency_s": 15.6,
+       "prompt_tokens": 399,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1352,
+     "cost_usd": 0.001336,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 399,
+     "raw_tail": "",
+     "reason": "The strategy computes volatility and rankings using only historical data up to each day's close, and applies the first\u2011day-of\u2011month weights uniformly throughout the month\u2014information that was available at the time of the decision, so no look\u2011ahead or survivorship bias is introduced.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C11_scary_named_helper",
+   "file": "bench/strategies/C11_scary_named_helper.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Helper named 'peek_next' with a misleading docstring but it shifts by +1 (backward-looking) - tests reviewer false positives.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.93 at t+1 vs 0.96 at t+2 (drop -3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.93 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.66 vs test 1.66 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.932,
+    "seconds": 0.91
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:15+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1166,
+       "cost_usd": 0.003915,
+       "latency_s": 5.76,
+       "prompt_tokens": 417,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1166,
+     "cost_usd": 0.003915,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 417,
+     "raw_tail": "",
+     "reason": "The `peek_next` function shifts the EWMA series forward by one period, so the signal at time t uses the EWMA value from time t+1 (which includes the close of day t+1), introducing look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:13+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 796,
+       "cost_usd": 0.000842,
+       "latency_s": 7.72,
+       "prompt_tokens": 417,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 796,
+     "cost_usd": 0.000842,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 417,
+     "raw_tail": "",
+     "reason": "The signal uses EWMA values shifted by one period (i.e., yesterday's EWMA) and the current day's listing status, so no future price information is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C12_month_end_calendar_shift",
+   "file": "bench/strategies/C12_month_end_calendar_shift.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none (calendar look-ahead is legitimate)",
+   "note": "Rebalances on the last trading day of each month by comparing each date's month with the next row's month. Uses only the trading calendar, which is known in advance; prices are not shifted.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [
+     "static_scan"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.26 at t+1 vs 1.25 at t+2 (drop 1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "1 red flag(s): negative_shift. Downgraded to a warning: the perturbation and survivorship tests show these patterns do not change any past signal. Review them anyway."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.26 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.97 vs test 1.91 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.259,
+    "seconds": 0.91
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:23+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009434,
+       "latency_s": 12.92,
+       "prompt_tokens": 434,
+       "thinking": true
+      },
+      {
+       "completion_tokens": 71,
+       "cost_usd": 0.000647,
+       "latency_s": 0.63,
+       "prompt_tokens": 434,
+       "thinking": false
+      }
+     ],
+     "completion_tokens": 3071,
+     "cost_usd": 0.010081,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 868,
+     "raw_tail": "",
+     "reason": "The code uses `month.shift(-1)` to identify month-end dates, which accesses the next row's month value (future information) to set `month_end`; this creates look-ahead bias because the signal for day t depends on whether day t+1 is in a new month.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:42+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1073,
+       "cost_usd": 0.001096,
+       "latency_s": 13.16,
+       "prompt_tokens": 434,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1073,
+     "cost_usd": 0.001096,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 434,
+     "raw_tail": "",
+     "reason": "The signal uses only lagged prices (shift) and the known date index to determine month-ends; it excludes delisted stocks via the listed mask, so no future price or fundamental information is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C13_transpose_rank",
+   "file": "bench/strategies/C13_transpose_rank.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "mom.T.rank(pct=True).T: the default axis=0 on the transposed frame is a cross-sectional rank (looks like the L17 trap, but is correct).",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.72 at t+1 vs 0.60 at t+2 (drop 18%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.72 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.96 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.35 vs test 1.68 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.724,
+    "seconds": 0.78
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:16+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1560,
+       "cost_usd": 0.005037,
+       "latency_s": 6.97,
+       "prompt_tokens": 357,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1560,
+     "cost_usd": 0.005037,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 357,
+     "raw_tail": "",
+     "reason": "The strategy uses only data available up to the close of day t (20-day return and cross-sectional ranking) and correctly masks delisted/unlisted tickers via the listed flag, avoiding look-ahead and survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:37+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 598,
+       "cost_usd": 0.000645,
+       "latency_s": 7.68,
+       "prompt_tokens": 357,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 598,
+     "cost_usd": 0.000645,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 357,
+     "raw_tail": "",
+     "reason": "The strategy computes 20\u2011day returns using only past close prices, ranks them cross\u2011sectionally for each day, and weights only currently listed stocks; no future data is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C14_trailing_ic_lagged",
+   "file": "bench/strategies/C14_trailing_ic_lagged.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "Trailing IC correlates YESTERDAY's signal with TODAY's realised return, so the window ending at t is fully known at t.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.26 at t+1 vs -0.36 at t+2 (drop 41%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.26 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.27 < 0.95 after 1 trial(s): observed Sharpe -0.26 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.41 vs test 0.19 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.257,
+    "seconds": 0.89
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:20+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2974,
+       "cost_usd": 0.009331,
+       "latency_s": 10.73,
+       "prompt_tokens": 409,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2974,
+     "cost_usd": 0.009331,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 409,
+     "raw_tail": "",
+     "reason": "All calculations at row t use only data available at or before the close of day t: sig[t] uses close[t], ic[t] uses ret[t] (known at close), and the listed mask correctly excludes delisted/IPO stocks at each date. The rolling correlation includes the most recent signal-return pair (sig[t-1], ret[t]) which is observable at decision time.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:41+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1009,
+       "cost_usd": 0.001031,
+       "latency_s": 12.23,
+       "prompt_tokens": 409,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1009,
+     "cost_usd": 0.001031,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 409,
+     "raw_tail": "",
+     "reason": "The signal uses only close prices up to day t (including a 5\u2011day lag) and correlations of lagged signals with same\u2011day returns; no future prices or returns are consulted, and the listed mask excludes delisted/missing data, avoiding survivorship bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "C15_resample_me_last",
+   "file": "bench/strategies/C15_resample_me_last.py",
+   "label": "clean",
+   "leaky": false,
+   "bug": "none",
+   "note": "resample('ME').last() labels the month-end close at the month's end, so forward-filling only shows it from that date on.",
+   "deterministic": {
+    "flagged": false,
+    "error": "",
+    "blocking": [],
+    "failing": [],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.07 at t+1 vs 1.05 at t+2 (drop 2%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.07 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.83 vs test 1.69 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.072,
+    "seconds": 0.92
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:16+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1388,
+       "cost_usd": 0.004553,
+       "latency_s": 6.77,
+       "prompt_tokens": 389,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1388,
+     "cost_usd": 0.004553,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 389,
+     "raw_tail": "",
+     "reason": "The strategy computes 3-month momentum using month-end closes available at each rebalance date, ranks cross-sectionally, and forward-fills weights to daily frequency; the engine executes each month-end signal at the next bar (t+1), so no future data is used. The listed mask is applied consistently, and the universe at each month-end includes only currently listed names, avoiding survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1464,
+       "cost_usd": 0.001434,
+       "latency_s": 16.12,
+       "prompt_tokens": 389,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1464,
+     "cost_usd": 0.001434,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 389,
+     "raw_tail": "",
+     "reason": "The signal uses only month-end close prices available on or before the decision date; forward\u2011filling assigns the prior month\u2019s signal to each day, and non\u2011listed tickers are zeroed, so no future information or survivorship bias is introduced.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": false,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "L01_shift_minus_one",
+   "file": "bench/strategies/L01_shift_minus_one.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "negative_shift",
+   "note": "Momentum signal shifted by -1: row t holds tomorrow's momentum (obvious).",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "execution_delay",
+     "static_scan"
+    ],
+    "failing": [
+     "future_perturbation",
+     "execution_delay",
+     "static_scan",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2022-05-19, max weight change 0.111)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "Sharpe collapses from 4.12 (t+1) to 0.72 (t+2), a 82% drop: the edge lives in the bar right after the signal, typical of same-bar or look-ahead execution."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "1 red flag(s): negative_shift."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 4.12 (CAGR 168%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 3.76 vs test 5.07 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 4.118,
+    "seconds": 1.01
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:52+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2831,
+       "cost_usd": 0.008866,
+       "latency_s": 10.4,
+       "prompt_tokens": 373,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2831,
+     "cost_usd": 0.008866,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 373,
+     "raw_tail": "",
+     "reason": "The shift(-1) moves the 20-day momentum signal forward by one day, so the signal at row t uses close prices from day t+1, which are not available at the decision time (after the close of day t).",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:14+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 902,
+       "cost_usd": 0.000924,
+       "latency_s": 7.63,
+       "prompt_tokens": 373,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 902,
+     "cost_usd": 0.000924,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 373,
+     "raw_tail": "",
+     "reason": "The momentum is shifted backward with `mom = mom.shift(-1)`, so the signal for day t uses the close price of day t+1, which is not available at the close of day t, introducing look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L02_centred_rolling",
+   "file": "bench/strategies/L02_centred_rolling.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "centred_window",
+   "note": "Moving average with center=True averages the next 10 bars.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2022-05-12, max weight change 0.125)."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 8.89 at t+1 vs 7.99 at t+2 (drop 10%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "1 red flag(s): centered_window."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 8.89 (CAGR 801%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 8.43 vs test 10.20 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 8.894,
+    "seconds": 0.96
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 521,
+       "cost_usd": 0.001957,
+       "latency_s": 3.5,
+       "prompt_tokens": 394,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 521,
+     "cost_usd": 0.001957,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 394,
+     "raw_tail": "",
+     "reason": "The rolling window uses center=True, which centers the 21-day window on the current date and therefore incorporates up to 10 future days of price data into the 'fair' value calculation, creating look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:11+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 294,
+       "cost_usd": 0.000383,
+       "latency_s": 3.82,
+       "prompt_tokens": 394,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 294,
+     "cost_usd": 0.000383,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 394,
+     "raw_tail": "",
+     "reason": "The rolling mean uses `center=True`, which incorporates future prices (up to 10 days ahead) when computing the fair value for each day, introducing look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L03_bfill_prices",
+   "file": "bench/strategies/L03_bfill_prices.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "backward_fill",
+   "note": "Prices are back-filled before computing a trailing return, so gaps take future prices and pre-IPO rows get the listing price.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "survivorship",
+     "static_scan"
+    ],
+    "failing": [
+     "survivorship",
+     "static_scan"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": true,
+      "severity": "critical",
+      "blocking": false,
+      "summary": "Signals on or before 6 random cut dates are unchanged when all later data is scrambled."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: weights assigned to tickers before they were listed."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.98 at t+1 vs 0.96 at t+2 (drop 2%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "1 red flag(s): backward_fill."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.98 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.68 vs test 1.76 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.984,
+    "seconds": 0.88
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:47+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 941,
+       "cost_usd": 0.003192,
+       "latency_s": 5.52,
+       "prompt_tokens": 369,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 941,
+     "cost_usd": 0.003192,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 369,
+     "raw_tail": "",
+     "reason": "The use of `bfill()` on close prices fills pre-IPO NaN values with the first available future price, introducing look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:15+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 712,
+       "cost_usd": 0.000751,
+       "latency_s": 7.33,
+       "prompt_tokens": 369,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 712,
+     "cost_usd": 0.000751,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 369,
+     "raw_tail": "",
+     "reason": "The code forward\u2011fills missing close prices (bfill), which injects future price information into past days, creating look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L04_fullsample_zscore",
+   "file": "bench/strategies/L04_fullsample_zscore.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "full_sample_normalisation",
+   "note": "Per-ticker z-score uses the whole-sample mean and std of the signal.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-02-27, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.60 at t+1 vs 0.63 at t+2 (drop -5%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "No blocking red flags (1 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.60 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.93 < 0.95 after 1 trial(s): observed Sharpe 0.60 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.34 vs test 1.30 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.602,
+    "seconds": 0.81
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 842,
+       "cost_usd": 0.00291,
+       "latency_s": 4.51,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 842,
+     "cost_usd": 0.00291,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The standardization step (z = (mom - mom.mean()) / mom.std()) computes mean and standard deviation over the full history of each ticker, incorporating future data not available at the signal date.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:16+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 681,
+       "cost_usd": 0.000728,
+       "latency_s": 7.82,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 681,
+     "cost_usd": 0.000728,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The code standardizes each ticker's momentum using its overall mean and standard deviation computed over the entire history, which incorporates future data when calculating signals for past dates.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L05_dropna_universe",
+   "file": "bench/strategies/L05_dropna_universe.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "survivor_universe",
+   "note": "dropna(axis=1) keeps only tickers with a complete history (survivors).",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "static_scan"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-04-01, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.88 at t+1 vs 0.88 at t+2 (drop -0%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "1 red flag(s): survivor_universe."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.88 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.98 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.59 vs test 1.63 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.879,
+    "seconds": 0.81
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 643,
+       "cost_usd": 0.002364,
+       "latency_s": 3.76,
+       "prompt_tokens": 435,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 643,
+     "cost_usd": 0.002364,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 435,
+     "raw_tail": "",
+     "reason": "The code uses `close.dropna(axis=1)` which removes any ticker with missing data at any point in the full sample, keeping only names that survive the entire backtest period \u2014 this is survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:15+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 501,
+       "cost_usd": 0.000581,
+       "latency_s": 4.65,
+       "prompt_tokens": 435,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 501,
+     "cost_usd": 0.000581,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 435,
+     "raw_tail": "",
+     "reason": "The strategy uses `clean = close.dropna(axis=1)` to keep only tickers with no missing data throughout the sample, which introduces survivorship bias by assuming future knowledge of which securities will remain listed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L06_select_by_final_return",
+   "file": "bench/strategies/L06_select_by_final_return.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "selection_on_future_performance",
+   "note": "Universe = 15 tickers with the best return over the LAST year of the sample, applied to the whole history.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation"
+    ],
+    "failing": [
+     "future_perturbation"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-03-12, max weight change 1.000). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.78 at t+1 vs 0.68 at t+2 (drop 13%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.78 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.97 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.02 vs test 3.16 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.783,
+    "seconds": 0.87
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 254,
+       "cost_usd": 0.001166,
+       "latency_s": 2.75,
+       "prompt_tokens": 404,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 254,
+     "cost_usd": 0.001166,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 404,
+     "raw_tail": "",
+     "reason": "The leader selection uses close.iloc[-1] and close.iloc[-252], which are the final rows of the full dataset, so the top 15 leaders are chosen with future knowledge and then applied to all historical dates, creating look-ahead and survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:14+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 263,
+       "cost_usd": 0.000358,
+       "latency_s": 3.45,
+       "prompt_tokens": 404,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 263,
+     "cost_usd": 0.000358,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 404,
+     "raw_tail": "",
+     "reason": "The leader selection uses the final close price of the entire sample (iloc[-1]) to compute 1\u2011year returns, which incorporates future information unavailable at earlier dates.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L07_time_rank_full_history",
+   "file": "bench/strategies/L07_time_rank_full_history.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "time_series_rank_full_sample",
+   "note": "rank(axis=0, pct=True) ranks each value against the ticker's entire history, including the future.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-30, max weight change 1.000). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.02 at t+1 vs 0.17 at t+2 (drop -1063%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.02 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.48 < 0.95 after 1 trial(s): observed Sharpe -0.02 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.32 vs test 0.81 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.018,
+    "seconds": 0.94
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:44+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 289,
+       "cost_usd": 0.001234,
+       "latency_s": 2.63,
+       "prompt_tokens": 367,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 289,
+     "cost_usd": 0.001234,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 367,
+     "raw_tail": "",
+     "reason": "The percentile rank (rank(axis=0, pct=True)) computes each day's momentum rank against the stock's entire history including future dates, so the signal at time t uses future momentum values to determine its percentile.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:18+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 614,
+       "cost_usd": 0.000663,
+       "latency_s": 5.18,
+       "prompt_tokens": 367,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 614,
+     "cost_usd": 0.000663,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 367,
+     "raw_tail": "",
+     "reason": "The percentile ranking is computed over the full momentum history (including future days) using `mom.rank(axis=0, pct=True)`, so determining whether today's momentum exceeds the 80th percentile relies on future data that is not available at time t.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L08_reverse_cummax",
+   "file": "bench/strategies/L08_reverse_cummax.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "reversed_cumulative",
+   "note": "close.iloc[::-1].cummax().iloc[::-1] is the maximum of FUTURE prices, not the past high.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation"
+    ],
+    "failing": [
+     "future_perturbation"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.97 at t+1 vs 1.96 at t+2 (drop 1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.97 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 1.13 vs test 4.38 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.974,
+    "seconds": 0.82
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 276,
+       "cost_usd": 0.001212,
+       "latency_s": 2.84,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 276,
+     "cost_usd": 0.001212,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The peak is computed as the cumulative maximum from each date to the end of the series (via reversal), so the discount uses future price information.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:21+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 475,
+       "cost_usd": 0.000543,
+       "latency_s": 8.23,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 475,
+     "cost_usd": 0.000543,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The running peak is computed via a reverse cumulative maximum, which incorporates future close prices, creating look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L09_weekly_resample_bfill",
+   "file": "bench/strategies/L09_weekly_resample_bfill.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "resample_backfill",
+   "note": "Weekly portfolio taken at Friday (.last()) and back-filled onto Mon-Thu of the same week.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "static_scan"
+    ],
+    "failing": [
+     "future_perturbation",
+     "static_scan",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 2/6 cut dates (first leaking date 2022-05-16, max weight change 0.200)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 5.63 at t+1 vs 4.24 at t+2 (drop 25%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "1 red flag(s): backward_fill."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 5.63 (CAGR 358%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 5.24 vs test 6.68 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 5.631,
+    "seconds": 0.81
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:49+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1414,
+       "cost_usd": 0.004644,
+       "latency_s": 6.66,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1414,
+     "cost_usd": 0.004644,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The weekly rebalancing uses `reindex(..., method='bfill')` which backfills Friday's portfolio weights to prior trading days (Mon\u2013Thu), so the strategy uses Friday's close-to-close decision before it is available.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:20+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 791,
+       "cost_usd": 0.000833,
+       "latency_s": 6.33,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 791,
+     "cost_usd": 0.000833,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The weekly weights are reindexed to daily using backfill (bfill), which assigns the upcoming Friday's weight to earlier days in the week, thus using future information.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L10_reversed_expanding_vol",
+   "file": "bench/strategies/L10_reversed_expanding_vol.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "reversed_expanding",
+   "note": "Expanding volatility computed on the time-reversed series = vol of all FUTURE returns.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.062). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.55 at t+1 vs 0.56 at t+2 (drop -1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.55 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.91 < 0.95 after 1 trial(s): observed Sharpe 0.55 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.44 vs test 0.95 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.55,
+    "seconds": 0.81
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 606,
+       "cost_usd": 0.002213,
+       "latency_s": 3.85,
+       "prompt_tokens": 395,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 606,
+     "cost_usd": 0.002213,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 395,
+     "raw_tail": "",
+     "reason": "The volatility calculation reverses the return series, applies an expanding window, and reverses back, so each date's volatility uses all future returns through the end of the sample \u2014 a clear look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:20+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 734,
+       "cost_usd": 0.000779,
+       "latency_s": 5.83,
+       "prompt_tokens": 395,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 734,
+     "cost_usd": 0.000779,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 395,
+     "raw_tail": "",
+     "reason": "The volatility calculation reverses the returns series before applying an expanding std, which effectively uses future returns (from t+1 onward) to estimate volatility at time t, introducing look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L11_groupby_quantile_threshold",
+   "file": "bench/strategies/L11_groupby_quantile_threshold.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "full_sample_quantile_threshold",
+   "note": "Per-ticker 80th-percentile threshold of momentum computed with groupby over the whole sample.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-30, max weight change 1.000). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.02 at t+1 vs 0.17 at t+2 (drop -1212%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.02 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.48 < 0.95 after 1 trial(s): observed Sharpe -0.02 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.32 vs test 0.80 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.016,
+    "seconds": 0.91
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 762,
+       "cost_usd": 0.002663,
+       "latency_s": 4.37,
+       "prompt_tokens": 377,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 762,
+     "cost_usd": 0.002663,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 377,
+     "raw_tail": "",
+     "reason": "The 80th percentile momentum threshold per stock is computed over the full sample (including future data) via groupby(level=1).quantile(0.8), then applied to historical dates, creating look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:24+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 601,
+       "cost_usd": 0.000654,
+       "latency_s": 9.87,
+       "prompt_tokens": 377,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 601,
+     "cost_usd": 0.000654,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 377,
+     "raw_tail": "",
+     "reason": "The breakout level is computed as each stock's 80th percentile momentum over the entire sample (including future days), so the signal at time t depends on future price information.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L12_helper_hidden_shift",
+   "file": "bench/strategies/L12_helper_hidden_shift.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "hidden_negative_shift_in_helper",
+   "note": "Helper with an innocent name shifts by -lag (a variable), so the static scan cannot see a negative constant.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "execution_delay"
+    ],
+    "failing": [
+     "future_perturbation",
+     "execution_delay",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2022-05-19, max weight change 0.111)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "Sharpe collapses from 7.35 (t+1) to 0.02 (t+2), a 100% drop: the edge lives in the bar right after the signal, typical of same-bar or look-ahead execution."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 7.35 (CAGR 483%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 6.94 vs test 8.45 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 7.349,
+    "seconds": 0.79
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:48+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1263,
+       "cost_usd": 0.004185,
+       "latency_s": 6.15,
+       "prompt_tokens": 396,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1263,
+     "cost_usd": 0.004185,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 396,
+     "raw_tail": "",
+     "reason": "The 5-day momentum at row t uses close[t], then to_trade_date shifts it up one row (shift(-1)), placing it in row t-1; thus the signal decided after close of day t-1 incorporates day t's close price, which is future information.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:21+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 782,
+       "cost_usd": 0.000823,
+       "latency_s": 6.63,
+       "prompt_tokens": 396,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 782,
+     "cost_usd": 0.000823,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 396,
+     "raw_tail": "",
+     "reason": "The function shifts the momentum signal backward by one day (shift(-1)), so the signal for day t uses momentum computed from day t+1\u2019s close, which is not known at the close of day t \u2013 a look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L13_alive_at_end",
+   "file": "bench/strategies/L13_alive_at_end.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "survivor_universe_last_row",
+   "note": "Universe = tickers with a price on the last date (close.iloc[-1].notna()), i.e. survivors.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-06-19, max weight change 0.083). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.29 at t+1 vs 1.29 at t+2 (drop 0%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.29 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.94 vs test 2.25 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.292,
+    "seconds": 0.8
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:47+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1227,
+       "cost_usd": 0.004094,
+       "latency_s": 5.5,
+       "prompt_tokens": 413,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1227,
+     "cost_usd": 0.004094,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 413,
+     "raw_tail": "",
+     "reason": "The strategy filters the universe using the final date's listing status (close.iloc[-1]), which introduces survivorship bias by excluding delisted stocks from all historical periods.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:25+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 751,
+       "cost_usd": 0.0008,
+       "latency_s": 9.73,
+       "prompt_tokens": 413,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 751,
+     "cost_usd": 0.0008,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 413,
+     "raw_tail": "",
+     "reason": "The function determines the set of tradable stocks by looking at the last row of the close DataFrame (close.iloc[-1]), which incorporates information about which securities survive until the end of the sample. This introduces survivorship bias because it uses future delisting information to filter stocks for earlier dates.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L14_polyfit_detrend",
+   "file": "bench/strategies/L14_polyfit_detrend.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "full_sample_regression",
+   "note": "Each log-price series is detrended with a linear fit over the whole sample, so today's residual depends on future prices.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.125). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 1.26 at t+1 vs 1.30 at t+2 (drop -3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 1.26 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 1.19 vs test 1.46 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 1.261,
+    "seconds": 1.02
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 591,
+       "cost_usd": 0.002221,
+       "latency_s": 4.27,
+       "prompt_tokens": 448,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 591,
+     "cost_usd": 0.002221,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 448,
+     "raw_tail": "",
+     "reason": "The linear trend for each stock is fitted on its entire available price history, including future data relative to each signal date, so residuals incorporate look-ahead information.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:20+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 529,
+       "cost_usd": 0.00061,
+       "latency_s": 4.61,
+       "prompt_tokens": 448,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 529,
+     "cost_usd": 0.00061,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 448,
+     "raw_tail": "",
+     "reason": "The regression coefficients are estimated using the entire history of each stock's log\u2011price, including future prices, so the residuals (and thus the rankings) at earlier dates incorporate forward\u2011looking information.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L15_min_history_filter",
+   "file": "bench/strategies/L15_min_history_filter.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "survivor_universe_count_filter",
+   "note": "Keeps tickers with >= 1200 observations over the full sample: removes names that later delist or IPO late.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 5/6 cut dates (first leaking date 2019-03-27, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.64 at t+1 vs 0.66 at t+2 (drop -3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.64 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.94 < 0.95 after 1 trial(s): observed Sharpe 0.64 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.28 vs test 1.59 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.644,
+    "seconds": 0.84
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 835,
+       "cost_usd": 0.002907,
+       "latency_s": 4.46,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 835,
+     "cost_usd": 0.002907,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The 'seasoned' filter uses close.count() >= 1200 computed over the full sample history, so at any date t it incorporates future knowledge about how long each stock will remain listed.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:24+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 563,
+       "cost_usd": 0.000627,
+       "latency_s": 7.87,
+       "prompt_tokens": 402,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 563,
+     "cost_usd": 0.000627,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 402,
+     "raw_tail": "",
+     "reason": "The seasoned filter uses close.count() >= 1200, which looks at the total number of non\u2011NaN observations for each ticker across the whole dataset, incorporating future data to decide if a stock is seasoned.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L16_liquidity_by_recent_volume",
+   "file": "bench/strategies/L16_liquidity_by_recent_volume.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "selection_on_future_volume",
+   "note": "Universe = 25 most liquid names by median volume of the LAST 60 days of the sample, applied to all dates.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation"
+    ],
+    "failing": [
+     "future_perturbation",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-30, max weight change 0.200). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.37 at t+1 vs -0.46 at t+2 (drop 25%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "No blocking red flags (1 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.37 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.18 < 0.95 after 1 trial(s): observed Sharpe -0.37 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.19 vs test -0.82 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.37,
+    "seconds": 0.91
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:46+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 680,
+       "cost_usd": 0.002445,
+       "latency_s": 4.07,
+       "prompt_tokens": 405,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 680,
+     "cost_usd": 0.002445,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 405,
+     "raw_tail": "",
+     "reason": "The liquidity universe is defined using `data[\"volume\"].iloc[-60:].median()`, which computes median volume over the final 60 days of the entire dataset. This future information is then applied to all historical rows, creating look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:45:23+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 310,
+       "cost_usd": 0.0004,
+       "latency_s": 4.76,
+       "prompt_tokens": 405,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 310,
+     "cost_usd": 0.0004,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 405,
+     "raw_tail": "",
+     "reason": "The code computes liquidity using the last 60 rows of the entire volume dataframe (.iloc[-60:]), which includes future volume information when generating signals for earlier dates, introducing look\u2011ahead bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L17_rank_default_axis",
+   "file": "bench/strategies/L17_rank_default_axis.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "pandas_default_axis_rank",
+   "note": "DataFrame.rank(pct=True) defaults to axis=0: each value is ranked against the ticker's whole history, not across stocks.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-30, max weight change 1.000). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe -0.02 at t+1 vs 0.17 at t+2 (drop -1016%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe -0.02 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.48 < 0.95 after 1 trial(s): observed Sharpe -0.02 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.32 vs test 0.81 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": -0.019,
+    "seconds": 1.03
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:49+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1597,
+       "cost_usd": 0.005145,
+       "latency_s": 6.67,
+       "prompt_tokens": 354,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1597,
+     "cost_usd": 0.005145,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 354,
+     "raw_tail": "",
+     "reason": "All calculations use only data available at the close of day t (20-day return and cross-sectional rank), and the listed mask properly excludes delisted tickers, so there is no look-ahead or survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:36+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 500,
+       "cost_usd": 0.000556,
+       "latency_s": 6.32,
+       "prompt_tokens": 354,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 500,
+     "cost_usd": 0.000556,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 354,
+     "raw_tail": "",
+     "reason": "The signal is constructed solely from close prices up to the current day (using pct_change(20) and a not\u2011na mask); no future prices or information are accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "L18_sub_mean_axis_trap",
+   "file": "bench/strategies/L18_sub_mean_axis_trap.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "pandas_default_axis_mean",
+   "note": "mom.sub(mom.mean(), axis=1) looks cross-sectional, but mom.mean() is each ticker's full-sample time mean.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-03-27, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.76 at t+1 vs 0.84 at t+2 (drop -11%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "No blocking red flags (1 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.76 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.97 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.50 vs test 1.43 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.76,
+    "seconds": 1.03
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:47+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 993,
+       "cost_usd": 0.003363,
+       "latency_s": 5.13,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 993,
+     "cost_usd": 0.003363,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The strategy computes 60-day momentum, cross-sectional demeaning, and ranking using only data available up to and including the close of day t; it properly masks unlisted tickers and does not incorporate any future information or survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:39+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 715,
+       "cost_usd": 0.000759,
+       "latency_s": 10.28,
+       "prompt_tokens": 384,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 715,
+     "cost_usd": 0.000759,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 384,
+     "raw_tail": "",
+     "reason": "The signal uses only past prices (pct_change over the last 60 days) and excludes securities that are not yet listed or already delisted via a contemporaneous listed mask, so no future information is accessed.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "L19_resample_ms_last",
+   "file": "bench/strategies/L19_resample_ms_last.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "resample_label_mismatch",
+   "note": "resample('MS').last() labels the month-END close at the month START; forward-filling then shows it all month.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation"
+    ],
+    "failing": [
+     "future_perturbation",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 5/6 cut dates (first leaking date 2022-05-02, max weight change 0.100)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 3.86 at t+1 vs 3.74 at t+2 (drop 3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 3.86 (CAGR 152%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 3.46 vs test 4.90 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 3.856,
+    "seconds": 0.99
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:54+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 3000,
+       "cost_usd": 0.009389,
+       "latency_s": 11.15,
+       "prompt_tokens": 389,
+       "thinking": true
+      },
+      {
+       "completion_tokens": 55,
+       "cost_usd": 0.000554,
+       "latency_s": 0.57,
+       "prompt_tokens": 389,
+       "thinking": false
+      }
+     ],
+     "completion_tokens": 3055,
+     "cost_usd": 0.009943,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 778,
+     "raw_tail": "",
+     "reason": "The strategy correctly uses monthly resampled close prices and shifts momentum by 3 months, then forward-fills monthly weights to daily frequency without accessing future data; NaN handling via listed mask avoids survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:53+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2459,
+       "cost_usd": 0.00233,
+       "latency_s": 24.05,
+       "prompt_tokens": 389,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2459,
+     "cost_usd": 0.00233,
+     "leaky": false,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 389,
+     "raw_tail": "",
+     "reason": "The strategy computes weights using only data available up to the close of the decision day (month\u2011end prices lagged by three months) and forwards those weights to future days; it also zeros out holdings for non\u2011listed securities, so no look\u2011ahead or survivorship bias is present.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": false
+   }
+  },
+  {
+   "id": "L20_groupby_transform_last",
+   "file": "bench/strategies/L20_groupby_transform_last.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "groupby_transform_last",
+   "note": "groupby(month).transform('last') gives every day the portfolio of the LAST day of its month.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation"
+    ],
+    "failing": [
+     "future_perturbation"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 5/6 cut dates (first leaking date 2022-05-02, max weight change 0.100)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.81 at t+1 vs 0.84 at t+2 (drop -3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.81 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.98 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.37 vs test 1.98 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.815,
+    "seconds": 0.97
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:48+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1294,
+       "cost_usd": 0.004291,
+       "latency_s": 6.26,
+       "prompt_tokens": 409,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1294,
+     "cost_usd": 0.004291,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 409,
+     "raw_tail": "",
+     "reason": "The groupby(transform='last') propagates the last trading day's portfolio weights to all earlier days in the same calendar month, so signals for early-month days use volatility rankings computed with future data from later in the month.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:41+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 749,
+       "cost_usd": 0.000797,
+       "latency_s": 11.51,
+       "prompt_tokens": 409,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 749,
+     "cost_usd": 0.000797,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 409,
+     "raw_tail": "",
+     "reason": "The strategy computes daily weights but then replaces them with the month\u2011end weight via groupby transform('last'), using future volatility information from later days in the month to set positions for earlier days.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L21_trailing_ic_forward_return",
+   "file": "bench/strategies/L21_trailing_ic_forward_return.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "target_leak_in_trailing_ic",
+   "note": "'Trailing' IC correlates the signal with the NEXT-day return; the window ending at t contains the return of t+1.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "static_scan"
+    ],
+    "failing": [
+     "future_perturbation",
+     "static_scan",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 3/6 cut dates (first leaking date 2022-07-29, max weight change 0.125)."
+     },
+     "survivorship": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Point-in-time universe: no weight before listing; signals unchanged when 3 delisted names are revived."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.17 at t+1 vs -0.40 at t+2 (drop 339%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "1 red flag(s): negative_shift."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.17 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.66 < 0.95 after 1 trial(s): observed Sharpe 0.17 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.03 vs test 0.74 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.168,
+    "seconds": 0.9
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 469,
+       "cost_usd": 0.001832,
+       "latency_s": 2.93,
+       "prompt_tokens": 425,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 469,
+     "cost_usd": 0.001832,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 425,
+     "raw_tail": "",
+     "reason": "The code computes the information coefficient using `fwd = ret.shift(-1)`, which brings future returns (t+1) into the rolling correlation at time t, creating look-ahead bias when selecting signals.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:37+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 623,
+       "cost_usd": 0.000688,
+       "latency_s": 7.52,
+       "prompt_tokens": 425,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 623,
+     "cost_usd": 0.000688,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 425,
+     "raw_tail": "",
+     "reason": "The IC calculation uses `fwd = ret.shift(-1)`, i.e., tomorrow's return, inside a rolling correlation that informs today's signal, thereby incorporating future information.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L22_descending_sort_rolling",
+   "file": "bench/strategies/L22_descending_sort_rolling.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "reversed_index_rolling",
+   "note": "Index sorted newest-first before rolling(20): each 'trailing' window covers the next 19 days.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "plausibility"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2022-04-27, max weight change 0.125)."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 10.26 at t+1 vs 9.93 at t+2 (drop 3%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 10.26 (CAGR 1172%) after costs is implausibly high for daily equities; treat as a bug until proven otherwise."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 1.00 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 9.78 vs test 11.67 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 10.259,
+    "seconds": 0.79
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:52+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 2716,
+       "cost_usd": 0.008534,
+       "latency_s": 9.9,
+       "prompt_tokens": 386,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 2716,
+     "cost_usd": 0.008534,
+     "leaky": false,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 386,
+     "raw_tail": "",
+     "reason": "The strategy computes a 20-day moving average using only past and current data (by rolling on a reversed index), ranks stocks based on current deviation, and only selects from currently listed tickers, avoiding both look-ahead and survivorship bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:48+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 1574,
+       "cost_usd": 0.001532,
+       "latency_s": 18.46,
+       "prompt_tokens": 386,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 1574,
+     "cost_usd": 0.001532,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 386,
+     "raw_tail": "",
+     "reason": "The code does not use future data to compute signals, but it restricts trading to currently listed stocks via the close.notna() mask, thereby dropping delisted names and introducing survivorship bias.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": false,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L23_fillna_full_mean",
+   "file": "bench/strategies/L23_fillna_full_mean.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "imputation_with_full_sample_mean",
+   "note": "Missing momentum (each ticker's first 60 days) is filled with the ticker's full-sample mean.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-02, max weight change 0.100). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.99 at t+1 vs 0.98 at t+2 (drop 2%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "No blocking red flags (1 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.99 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.99 >= 0.95 after 1 trial(s): edge survives selection bias."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train 0.73 vs test 1.67 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.992,
+    "seconds": 0.84
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:47+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 731,
+       "cost_usd": 0.002561,
+       "latency_s": 4.68,
+       "prompt_tokens": 368,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 731,
+     "cost_usd": 0.002561,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 368,
+     "raw_tail": "",
+     "reason": "mom.fillna(mom.mean()) fills missing momentum values with each ticker's mean momentum computed over the entire sample period (including future dates), introducing look-ahead bias when ranking at each date t.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:39+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 716,
+       "cost_usd": 0.000755,
+       "latency_s": 9.93,
+       "prompt_tokens": 368,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 716,
+     "cost_usd": 0.000755,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 368,
+     "raw_tail": "",
+     "reason": "The code fills missing momentum values with the overall mean of mom computed across the entire dataset, which incorporates future returns, thus using look\u2011ahead information.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  },
+  {
+   "id": "L24_pooled_qcut",
+   "file": "bench/strategies/L24_pooled_qcut.py",
+   "label": "leaky",
+   "leaky": true,
+   "bug": "pooled_quantile_breakpoints",
+   "note": "pd.qcut on the stacked panel computes quintile breakpoints from all dates, including future ones.",
+   "deterministic": {
+    "flagged": true,
+    "error": "",
+    "blocking": [
+     "future_perturbation",
+     "survivorship"
+    ],
+    "failing": [
+     "future_perturbation",
+     "survivorship",
+     "deflated_sharpe"
+    ],
+    "tests": {
+     "future_perturbation": {
+      "passed": false,
+      "severity": "critical",
+      "blocking": true,
+      "summary": "LOOK-AHEAD: scrambling data after the cut changed past signals at 6/6 cut dates (first leaking date 2019-01-30, max weight change 1.000). Changes reach the start of the sample -> full-sample statistic or survivor universe."
+     },
+     "survivorship": {
+      "passed": false,
+      "severity": "high",
+      "blocking": true,
+      "summary": "SURVIVORSHIP: past signals change when delisted names are made to survive (universe depends on future survival)."
+     },
+     "execution_delay": {
+      "passed": true,
+      "severity": "high",
+      "blocking": false,
+      "summary": "Sharpe 0.33 at t+1 vs 0.33 at t+2 (drop -1%); robust to one extra bar of delay."
+     },
+     "static_scan": {
+      "passed": true,
+      "severity": "info",
+      "blocking": false,
+      "summary": "No blocking red flags (0 soft warning(s))."
+     },
+     "plausibility": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe 0.33 is within a plausible range for a daily equity strategy."
+     },
+     "deflated_sharpe": {
+      "passed": false,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Deflated Sharpe 0.79 < 0.95 after 1 trial(s): observed Sharpe 0.33 is not clearly above the 0.00 expected from luck."
+     },
+     "train_test_split": {
+      "passed": true,
+      "severity": "medium",
+      "blocking": false,
+      "summary": "Sharpe train -0.05 vs test 1.35 (70/30 split): no severe degradation."
+     }
+    },
+    "sharpe": 0.325,
+    "seconds": 1.02
+   },
+   "llm": {
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+     "at": "2026-10-29T02:48:45+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 309,
+       "cost_usd": 0.001305,
+       "latency_s": 2.75,
+       "prompt_tokens": 378,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 309,
+     "cost_usd": 0.001305,
+     "leaky": true,
+     "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+     "parsed": true,
+     "prompt_tokens": 378,
+     "raw_tail": "",
+     "reason": "pd.qcut computes quintile cutoffs using the entire stacked momentum series across all dates, so bucket assignments for day t incorporate future momentum values, creating look-ahead bias.",
+     "cached": true
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+     "at": "2026-10-29T02:47:38+00:00",
+     "attempts": [
+      {
+       "completion_tokens": 510,
+       "cost_usd": 0.000572,
+       "latency_s": 8.37,
+       "prompt_tokens": 378,
+       "thinking": true
+      }
+     ],
+     "completion_tokens": 510,
+     "cost_usd": 0.000572,
+     "leaky": true,
+     "model": "nvidia/nemotron-3-super-120b-a12b",
+     "parsed": true,
+     "prompt_tokens": 378,
+     "raw_tail": "",
+     "reason": "The quintile thresholds are computed via pd.qcut on the stacked momentum series that includes all dates (including future ones), so the ranking uses future information to decide which stocks are in the top quintile.",
+     "cached": true
+    }
+   },
+   "pred": {
+    "deterministic": true,
+    "llm:nvidia/Nemotron-3-Ultra-550b-a55b": true,
+    "llm:nvidia/nemotron-3-super-120b-a12b": true
+   }
+  }
+ ]
+}

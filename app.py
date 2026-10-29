@@ -9,6 +9,7 @@ import difflib
 import html
 import os
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -40,6 +41,21 @@ st.markdown("""
             padding:1px 6px; border-radius:4px;}
 .subtle {color:#6b7280; font-size:0.9rem;}
 .hero-sub {color:#4b5563; font-size:1.05rem; margin-top:-0.6rem;}
+.steps {display:flex; gap:10px; margin:6px 0 14px 0; flex-wrap:wrap;}
+.step {flex:1 1 200px; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#fafafa;}
+.step b {display:block; font-size:0.92rem; margin-bottom:2px;}
+.step span {color:#4b5563; font-size:0.82rem;}
+.codebox {font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.8rem; line-height:1.45;
+          border:1px solid #e5e7eb; border-radius:8px; overflow-x:auto; background:#fbfbfc; padding:6px 0;}
+.codeline {white-space:pre; padding:0 10px;}
+.codeline .ln {display:inline-block; width:2.6em; color:#9ca3af; user-select:none;}
+.codeline.flag-critical {background:#fde8e8;}
+.codeline.flag-high {background:#fdf1dc;}
+.codeline.flag-medium {background:#fdf8e6;}
+.flagnote {color:#9b1c1c; font-size:0.74rem; padding-left:1.2em;}
+.verdict {border-radius:12px; padding:14px 18px; margin:6px 0 12px 0; border:1px solid #e5e7eb;}
+.verdict .big {font-size:1.6rem; font-weight:700;}
+.verdict .lab {color:#6b7280; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,6 +64,12 @@ st.markdown("""
 @st.cache_data(show_spinner=False)
 def synthetic(seed: int, n_tickers: int, years: int):
     return generate_panel(seed=seed, n_tickers=n_tickers, years=years)
+
+
+@st.cache_data(show_spinner=False)
+def real_panel():
+    from data.real import load_real_panel
+    return load_real_panel()
 
 
 def short_model(m: str) -> str:
@@ -62,6 +84,60 @@ def pill(t: dict) -> str:
     else:
         cls, mark = "pill-warn", "!"
     return f'<span class="pill {cls}" title="{html.escape(t["summary"])}">{mark} {t["name"]}</span>'
+
+
+def flagged_code_html(code: str, tests: list[dict]) -> str | None:
+    """Source with the lines the static scan flagged highlighted (None when nothing is flagged)."""
+    st_test = next((t for t in tests if t["name"] == "static_scan"), None)
+    findings = (st_test or {}).get("evidence", {}).get("findings", []) if st_test else []
+    if not findings:
+        return None
+    by_line: dict[int, list[dict]] = {}
+    for f in findings:
+        by_line.setdefault(int(f.get("line", 0)), []).append(f)
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    out = []
+    for i, line in enumerate(code.splitlines(), start=1):
+        fs = by_line.get(i)
+        cls = ""
+        note = ""
+        if fs:
+            worst = min((f.get("severity", "medium") for f in fs), key=lambda x: order.get(x, 9))
+            cls = f" flag-{worst}"
+            note = '<span class="flagnote">◀ ' + html.escape("; ".join(f"{f.get('rule')} ({f.get('severity')})" for f in fs)) + "</span>"
+        out.append(f'<div class="codeline{cls}"><span class="ln">{i}</span>{html.escape(line) or " "}{note}</div>')
+    return '<div class="codebox">' + "".join(out) + "</div>"
+
+
+def leak_proof_chart(test: dict, data: dict) -> go.Figure | None:
+    """Each cut date t: all data after t was scrambled. Red bars = past signals that changed anyway."""
+    cuts = (test.get("evidence") or {}).get("cuts") or []
+    if not cuts:
+        return None
+    fig = go.Figure()
+    idx = data["close"].index
+    for k, c in enumerate(cuts):
+        cut = pd.Timestamp(c["cut_date"])
+        y = k + 1
+        fig.add_trace(go.Scatter(x=[cut, idx[-1]], y=[y, y], mode="lines", line=dict(color="#d1d5db", width=8),
+                                 hoverinfo="skip", showlegend=(k == 0), name="Scrambled future (after cut)"))
+        if c.get("leaked"):
+            a, b = pd.Timestamp(c["earliest_changed_date"]), pd.Timestamp(c["latest_changed_date"])
+            fig.add_trace(go.Scatter(x=[a, b], y=[y, y], mode="lines", line=dict(color=RED, width=8),
+                                     name="Past signals that changed", showlegend=not any(
+                                         t.name == "Past signals that changed" for t in fig.data),
+                                     hovertext=f"{c['rows_changed']} past rows changed, max weight change {c['max_abs_weight_change']:.3f}",
+                                     hoverinfo="text"))
+        fig.add_trace(go.Scatter(x=[cut], y=[y], mode="markers", marker=dict(symbol="line-ns", size=18,
+                                 line=dict(width=3, color=RED if c.get("leaked") else GREEN)),
+                                 showlegend=False, hovertext=f"cut {cut:%Y-%m-%d}: {'LEAK' if c.get('leaked') else 'ok'}",
+                                 hoverinfo="text"))
+    fig.update_layout(height=60 + 34 * len(cuts), margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
+                      paper_bgcolor="white", legend=dict(orientation="h", y=1.15, x=0),
+                      yaxis=dict(tickvals=list(range(1, len(cuts) + 1)), ticktext=[f"cut {k}" for k in range(1, len(cuts) + 1)],
+                                 showgrid=False))
+    fig.update_xaxes(showgrid=True, gridcolor="#eef0f3", range=[idx[0], idx[-1]])
+    return fig
 
 
 # ----------------------------------------------------------------------------- sidebar
@@ -94,8 +170,13 @@ with st.sidebar:
     cost_bps = st.slider("Transaction cost (bps per unit turnover)", 0, 50, 10)
     pacing = st.slider("Demo pacing (mock latency, s)", 0.0, 2.0, 0.6, 0.1, disabled=live)
     st.subheader("Data")
-    src = st.radio("Universe", ["Synthetic (seeded)", "Upload CSV"], index=0)
-    if src.startswith("Synthetic"):
+    src = st.radio("Universe", ["Synthetic (seeded)", "Real US equities (40, 2014–2025)", "Upload CSV"], index=0,
+                   help="Synthetic has known delistings and IPOs (ground truth for survivorship). "
+                        "Real = adjusted daily prices of 40 US names incl. 7 IPOs; it has no delisted names, "
+                        "so the dataset itself is survivor-biased and the audit warns about it.")
+    if src.startswith("Real"):
+        data = real_panel()
+    elif src.startswith("Synthetic"):
         c1, c2 = st.columns(2)
         seed = c1.number_input("Seed", value=51, step=1)
         years = c2.number_input("Years", value=6, min_value=2, max_value=15, step=1)
@@ -115,30 +196,50 @@ st.title("Backtest Auditor")
 st.markdown('<p class="hero-sub">LLM agents write the strategy. <b>Deterministic tests decide if it is honest.</b> '
             'Nemotron on Nebius Token Factory codes and explains; perturbation, survivorship and '
             'overfitting tests prove look-ahead bias with numbers.</p>', unsafe_allow_html=True)
+st.markdown("""<div class="steps">
+<div class="step"><b>1 · Write</b><span>Nemotron 3 Super turns your idea into <code>generate_signals(data)</code>, or you paste your own.</span></div>
+<div class="step"><b>2 · Attack</b><span>Sandboxed run, then the future is scrambled, dead stocks revived, execution delayed, code scanned.</span></div>
+<div class="step"><b>3 · Diagnose</b><span>Nemotron 3 Ultra reads the failing evidence and pins each bug to a line.</span></div>
+<div class="step"><b>4 · Repeat</b><span>Loop until no critical/high test fails. The LLM proposes; the numbers decide.</span></div>
+</div>""", unsafe_allow_html=True)
 
-if "hyp" not in st.session_state:
-    st.session_state["hyp"] = PRESETS["Momentum (top decile, weekly)"]
-c_in, c_side = st.columns([3, 1.25])
-with c_side:
-    preset = st.selectbox("Preset hypotheses", list(PRESETS))
-    if st.button("Use preset", width="stretch"):
-        st.session_state["hyp"] = PRESETS[preset]
-with c_in:
-    hyp = st.text_area("Trading hypothesis (natural language)", key="hyp", height=80)
-origin = st.radio("First draft", ["Nemotron writes it from the hypothesis", "Audit my own strategy code"],
-                  horizontal=True, help="Paste a generate_signals(data) function from your notebook. "
-                                        "Iteration 1 runs it unchanged; Nemotron only repairs it.")
-user_code = None
-if origin.startswith("Audit"):
-    from agents.mock_strategies import LEAKY
-    if "user_code" not in st.session_state:
-        st.session_state["user_code"] = LEAKY["momentum"]
-    user_code = st.text_area("Strategy code: def generate_signals(data) -> weights DataFrame",
-                             key="user_code", height=260)
-run = st.button("Run audit loop", type="primary")
-if not live:
-    st.caption("Mock mode replays canned Coder drafts (picked by keyword) and a rule-based Auditor; "
-               "every test result and metric is computed for real.")
+DATA_FOR_CHARTS = data
+tab_audit, tab_bench, tab_ci = st.tabs(["🧪 Audit a strategy", "📊 LeakBench: tests vs LLM judges", "⚙️ Use it in CI"])
+with tab_bench:
+    try:
+        from bench.ui import render_leakbench
+        render_leakbench(st)
+    except Exception as exc:  # bench results not generated yet
+        st.info(f"LeakBench results are not available in this build ({type(exc).__name__}).")
+with tab_ci:
+    try:
+        st.markdown(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "ci.md"), encoding="utf-8").read())
+    except OSError:
+        st.info("CI docs are not available in this build.")
+with tab_audit:
+    if "hyp" not in st.session_state:
+        st.session_state["hyp"] = PRESETS["Momentum (top decile, weekly)"]
+    c_in, c_side = st.columns([3, 1.25])
+    with c_side:
+        preset = st.selectbox("Preset hypotheses", list(PRESETS))
+        if st.button("Use preset", width="stretch"):
+            st.session_state["hyp"] = PRESETS[preset]
+    with c_in:
+        hyp = st.text_area("Trading hypothesis (natural language)", key="hyp", height=80)
+    origin = st.radio("First draft", ["Nemotron writes it from the hypothesis", "Audit my own strategy code"],
+                      horizontal=True, help="Paste a generate_signals(data) function from your notebook. "
+                                            "Iteration 1 runs it unchanged; Nemotron only repairs it.")
+    user_code = None
+    if origin.startswith("Audit"):
+        from agents.mock_strategies import LEAKY
+        if "user_code" not in st.session_state:
+            st.session_state["user_code"] = LEAKY["momentum"]
+        user_code = st.text_area("Strategy code: def generate_signals(data) -> weights DataFrame",
+                                 key="user_code", height=260)
+    run = st.button("Run audit loop", type="primary")
+    if not live:
+        st.caption("Mock mode replays canned Coder drafts (picked by keyword) and a rule-based Auditor; "
+                   "every test result and metric is computed for real.")
 
 
 # ----------------------------------------------------------------------------- rendering
@@ -170,12 +271,23 @@ def render_iteration(it: dict, models: dict, expanded: bool):
             d.metric("Turnover / yr", f"{m['turnover_annual']:.1f}x")
         if it.get("error"):
             st.error(it["error"])
-        with st.expander("Strategy code", expanded=False):
-            st.code(it["code"], language="python")
+        flagged = flagged_code_html(it["code"], tests) if blocking else None
+        with st.expander("Strategy code" + (" · flagged lines highlighted" if flagged else ""), expanded=False):
+            if flagged:
+                st.markdown(flagged, unsafe_allow_html=True)
+            else:
+                st.code(it["code"], language="python")
         if blocking:
             with st.expander("Failing test evidence", expanded=expanded):
                 for t in blocking:
                     st.markdown(f"**{t['name']}** ({t['severity']}): {t['summary']}")
+                pert = next((t for t in blocking if t["name"] == "future_perturbation"), None)
+                if pert is not None and DATA_FOR_CHARTS is not None:
+                    fig = leak_proof_chart(pert, DATA_FOR_CHARTS)
+                    if fig is not None:
+                        st.caption("Leak proof: for each cut date, every price after it was scrambled. "
+                                   "Red = signals *before* the cut changed anyway, so the strategy reads the future.")
+                        st.plotly_chart(fig, width="stretch", key=f"lp_{id(it)}_{it['index']}_{np.random.randint(1e9)}")
         if it.get("auditor_feedback"):
             with st.expander(f"Auditor diagnosis · {short_model(models['auditor'])}", expanded=expanded):
                 st.markdown(it["auditor_feedback"])
@@ -225,6 +337,23 @@ def render_results(trace: dict, data: dict):
                    "Clean means honest, not necessarily profitable.")
     else:
         st.error(f"Not clean after {len(its)} iteration(s) ({status}). Do not trust these results.")
+
+    scored0 = [i for i in its if i.get("metrics")]
+    if len(scored0) >= 2 or (scored0 and status != "clean"):
+        f0, fl = scored0[0], scored0[-1]
+        pert0 = next((t for t in f0.get("tests", []) if t["name"] == "future_perturbation" and not t["passed"]), None)
+        leak_d = (pert0 or {}).get("evidence", {}).get("first_leaking_date")
+        n_fail0 = sum(1 for t in f0.get("tests", []) if t.get("blocking"))
+        cols = st.columns(4)
+        cols[0].markdown(f'<div class="verdict"><div class="lab">First draft Sharpe</div><div class="big" style="color:{RED}">'
+                         f'{f0["metrics"]["sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
+        cols[1].markdown(f'<div class="verdict"><div class="lab">{"Audited" if status == "clean" else "Last"} Sharpe</div>'
+                         f'<div class="big" style="color:{GREEN if status == "clean" else AMBER}">{fl["metrics"]["sharpe"]:.2f}</div></div>',
+                         unsafe_allow_html=True)
+        cols[2].markdown(f'<div class="verdict"><div class="lab">Blocking failures in draft</div><div class="big">{n_fail0}</div></div>',
+                         unsafe_allow_html=True)
+        cols[3].markdown(f'<div class="verdict"><div class="lab">First leaking date</div><div class="big">'
+                         f'{str(leak_d)[:10] if leak_d else "–"}</div></div>', unsafe_allow_html=True)
 
     st.subheader("Before vs after the audit")
     st.plotly_chart(equity_chart(trace, data), width="stretch")
@@ -287,53 +416,54 @@ def RunTrace_json(trace: dict) -> str:  # noqa: N802
 
 
 # ----------------------------------------------------------------------------- run
-if run and hyp.strip():
-    if live:
-        st.session_state["live_runs"] = st.session_state.get("live_runs", 0) + 1
-    llm = make_llm(mock=not live, config=cfg, mock_latency_s=pacing)
-    st.subheader("Live iteration timeline")
-    status = st.status("Coder is drafting the strategy…", expanded=True)
-    live_box = st.empty()
-    state: dict = {"iterations": []}
+with tab_audit:
+    if run and hyp.strip():
+        if live:
+            st.session_state["live_runs"] = st.session_state.get("live_runs", 0) + 1
+        llm = make_llm(mock=not live, config=cfg, mock_latency_s=pacing)
+        st.subheader("Live iteration timeline")
+        status = st.status("Coder is drafting the strategy…", expanded=True)
+        live_box = st.empty()
+        state: dict = {"iterations": []}
 
-    def redraw():
-        with live_box.container():
-            for it in state["iterations"]:
-                render_iteration(it, {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")}, expanded=True)
+        def redraw():
+            with live_box.container():
+                for it in state["iterations"]:
+                    render_iteration(it, {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")}, expanded=True)
 
-    def on_event(e):
-        t = e["type"]
-        if t == "coder_start":
-            status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({short_model(e['model'])}) is writing code…")
-        elif t == "coder_done":
-            state["iterations"].append({"index": e["iteration"], "code": e["code"], "status": "pending", "tests": [],
-                                        "user_code": bool(e.get("user_code"))})
-            status.update(label=f"Iteration {e['iteration'] + 1}: running sandbox + deterministic audit…")
-        elif t == "tests_done":
-            it = state["iterations"][-1]
-            it.update(status="clean" if e["clean"] else "failing", tests=e["tests"], metrics=e["metrics"])
-        elif t == "error":
-            state["iterations"][-1].update(status="error", error=e["error"])
-        elif t == "auditor_start":
-            status.update(label=f"Iteration {e['iteration'] + 1}: Auditor ({short_model(e['model'])}) is diagnosing…")
-        elif t == "auditor_done":
-            state["iterations"][-1]["auditor_feedback"] = e["feedback"]
-        elif t == "summary_start":
-            status.update(label=f"Summarizer ({short_model(e['model'])}) is writing the report…")
-        redraw()
+        def on_event(e):
+            t = e["type"]
+            if t == "coder_start":
+                status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({short_model(e['model'])}) is writing code…")
+            elif t == "coder_done":
+                state["iterations"].append({"index": e["iteration"], "code": e["code"], "status": "pending", "tests": [],
+                                            "user_code": bool(e.get("user_code"))})
+                status.update(label=f"Iteration {e['iteration'] + 1}: running sandbox + deterministic audit…")
+            elif t == "tests_done":
+                it = state["iterations"][-1]
+                it.update(status="clean" if e["clean"] else "failing", tests=e["tests"], metrics=e["metrics"])
+            elif t == "error":
+                state["iterations"][-1].update(status="error", error=e["error"])
+            elif t == "auditor_start":
+                status.update(label=f"Iteration {e['iteration'] + 1}: Auditor ({short_model(e['model'])}) is diagnosing…")
+            elif t == "auditor_done":
+                state["iterations"][-1]["auditor_feedback"] = e["feedback"]
+            elif t == "summary_start":
+                status.update(label=f"Summarizer ({short_model(e['model'])}) is writing the report…")
+            redraw()
 
-    try:
-        trace: RunTrace = run_audit_loop(hyp.strip(), data, llm, max_iters=max_iters, cost_bps=float(cost_bps),
-                                         on_event=on_event, initial_code=(user_code or None))
-        status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
-                      state="complete" if trace.final_status == "clean" else "error", expanded=False)
-        st.session_state["trace"] = trace.to_dict()
-    except Exception as exc:  # surface API/config errors in the UI
-        status.update(label="Run failed", state="error")
-        st.exception(exc)
-    live_box.empty()
+        try:
+            trace: RunTrace = run_audit_loop(hyp.strip(), data, llm, max_iters=max_iters, cost_bps=float(cost_bps),
+                                             on_event=on_event, initial_code=(user_code or None))
+            status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
+                          state="complete" if trace.final_status == "clean" else "error", expanded=False)
+            st.session_state["trace"] = trace.to_dict()
+        except Exception as exc:  # surface API/config errors in the UI
+            status.update(label="Run failed", state="error")
+            st.exception(exc)
+        live_box.empty()
 
-if "trace" in st.session_state:
-    render_results(st.session_state["trace"], data)
-else:
-    st.info("Pick a preset or type a hypothesis, then press **Run audit loop**.")
+    if "trace" in st.session_state:
+        render_results(st.session_state["trace"], data)
+    else:
+        st.info("Pick a preset or type a hypothesis, then press **Run audit loop**.")

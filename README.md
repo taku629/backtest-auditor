@@ -131,6 +131,42 @@ Environment variables: `NEBIUS_API_KEY`, `USE_MOCK`, `NEBIUS_BASE_URL`, `CODER_M
 
 `render.yaml` plus `Dockerfile` (Python 3.11-slim). Set `NEBIUS_API_KEY` in the dashboard. Without it the app runs in Mock mode.
 
+## LeakBench: deterministic tests vs LLM-only review
+
+Can another LLM just review the code instead? `bench/` holds 39 labelled strategies (24 leaky, 15 clean),
+from textbook bugs to realistic pandas traps (`rank()` defaulting to the time axis, `sub(mean(), axis=1)`,
+`resample("MS").last()`, newest-first rolling windows) plus clean code that *looks* scary (`shift(1)`, a helper
+named `peek_next`, a month-end flag built from the trading calendar). Nemotron judges see the code with labels stripped.
+
+| Method | Recall (leaks caught) | False-positive rate | Accuracy |
+|---|---|---|---|
+| **Backtest Auditor (deterministic tests)** | **100%** | **0%** | **100%** |
+| LLM-only: Nemotron 3 Ultra | 83% | 13% | 85% |
+| LLM-only: Nemotron 3 Super | 88% | 0% | 92% |
+
+Both LLM judges were perfect on the textbook bugs and missed the same subtle pandas traps, which the perturbation test
+catches by experiment. Full table and every wrong verdict with the model's reasoning: [`bench/RESULTS.md`](bench/RESULTS.md).
+Rerun offline from the cache with `python -m bench.run_bench` (the live run cost $0.22).
+Caveat: benchmark and auditor were written by the same author on synthetic data; treat it as a set of realistic bug patterns.
+
+## Use it in CI
+
+```bash
+python audit_cli.py "strategies/**/*.py"            # exit 1 on look-ahead / survivorship; points at the lines
+python audit_cli.py strategy.py --format sarif --out audit.sarif   # GitHub code scanning annotations
+python audit_cli.py strategy.py --fix               # with NEBIUS_API_KEY: Nemotron writes strategy.fixed.py
+```
+
+GitHub Action: `uses: taku629/backtest-auditor@main` with `paths:` (annotates the offending lines in PRs, uploads SARIF).
+A pre-commit hook (`backtest-auditor`) is in `.pre-commit-hooks.yaml`. Details: [`docs/ci.md`](docs/ci.md).
+
+## Real market data
+
+Besides the synthetic bench, the app ships adjusted daily prices for 40 US stocks and ETFs (2014–2025, incl. 7 IPOs
+inside the window). The leaky momentum example scores Sharpe 5.67 there vs 0.78 for the honest version, and the
+perturbation test flags it at 6/6 cut dates. The free data has no delisted names, so the dataset itself is
+survivor-biased and the audit says so. See `data/real/README.md`.
+
 ## Repository layout
 
 ```
@@ -141,7 +177,10 @@ audit/                 leak_tests.py (perturbation, survivorship, delay, DSR, re
 engine/backtester.py   causal daily backtester and metrics
 sandbox/               runner.py (policy + subprocess), _child.py (restricted executor)
 data/                  synthetic.py (seeded panel), loader.py (CSV)
-tests/                 pytest suite
+bench/                 LeakBench strategies, runner, results, Streamlit view
+audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
+action.yml             composite GitHub Action
+tests/                 pytest suite (122 tests)
 ```
 
 ## Limitations

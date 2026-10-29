@@ -1,0 +1,23 @@
+# pre-commit hooks for Backtest Auditor (https://pre-commit.com)
+#
+# Usage in your repo's .pre-commit-config.yaml:
+#
+#   - repo: https://github.com/taku629/backtest-auditor
+#     rev: main            # pin a tag or commit SHA
+#     hooks:
+#       - id: backtest-auditor
+#         files: ^strategies/.*\.py$     # where your generate_signals(data) files live
+#
+# The hook runs the deterministic audit only (no LLM, no API key). It uses the
+# python3 on your PATH, which needs numpy and pandas (pip install numpy pandas).
+- id: backtest-auditor
+  name: Backtest Auditor (look-ahead / survivorship)
+  description: Runs each strategy in the sandbox and blocks the commit if a critical/high leak test fails.
+  entry: audit_cli.py
+  language: script
+  args: [--fail-on, high, --annotations, never]
+  files: (^|/)strategies?/.*\.py$
+  exclude: \.fixed\.py$
+  types: [python]
+  pass_filenames: true
+  require_serial: true

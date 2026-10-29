@@ -374,6 +374,17 @@ def run_audit(data: dict, executor: Executor, code: str | None = None, *, n_tria
                               if bt1.holdings.abs().sum().sum() > 0 else bt1.returns,
                               n_trials, trial_sharpes),
     ]
+    # Static findings are hypotheses; the dynamic tests are the proof. When perturbation and survivorship both
+    # pass, a red-flag pattern did not change any past signal (e.g. a month-end flag built with
+    # index.month.shift(-1): the trading calendar is known in advance), so it is downgraded to a warning.
+    by = {t.name: t for t in tests}
+    st_t = by.get("static_scan")
+    if (st_t is not None and not st_t.passed and st_t.severity in BLOCKING
+            and by["future_perturbation"].passed and by["survivorship"].passed):
+        st_t.evidence = {**st_t.evidence, "downgraded_from": st_t.severity}
+        st_t.severity = "medium"
+        st_t.summary += (" Downgraded to a warning: the perturbation and survivorship tests show these patterns "
+                         "do not change any past signal. Review them anyway.")
     if bt1.metrics["avg_gross"] == 0:
         tests.append(TestResult("non_trivial", False, "high", "Strategy never takes a position.",
                                 {}, "Return non-zero target weights."))

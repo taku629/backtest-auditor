@@ -1,0 +1,76 @@
+name: Backtest audit (example)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # SARIF upload -> PR annotations on the offending lines
+
+jobs:
+  audit-examples:
+    name: Audit examples/*.py (leaky example is expected to fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backtest Auditor
+        id: audit
+        uses: ./
+        continue-on-error: true          # examples/leaky_momentum.py is deliberately leaky
+        with:
+          paths: "examples/*.py"
+          fail-on: high
+          format: text
+          sarif-category: examples
+
+      - name: Expect the leaky example to be flagged
+        env:
+          OUTCOME: ${{ steps.audit.outcome }}
+          CODE: ${{ steps.audit.outputs.exit-code }}
+        run: |
+          echo "audit outcome=$OUTCOME exit-code=$CODE"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "::error::examples/leaky_momentum.py should fail the audit, but it passed."
+            exit 1
+          fi
+          echo "As expected: the deliberately leaky example was blocked."
+
+  audit-clean-strategy:
+    name: Clean strategy passes the gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write a point-in-time momentum strategy
+        run: |
+          mkdir -p ci_strategies
+          cat > ci_strategies/clean_momentum.py <<'PY'
+          import numpy as np
+          import pandas as pd
+
+
+          def generate_signals(data):
+              """Top-decile 20-day momentum, point-in-time universe, weekly rebalance."""
+              close = data["close"]
+              listed = close.notna()
+              mom = (close / close.shift(20) - 1).where(listed)
+              rank = mom.rank(axis=1, pct=True)
+              top = ((rank >= 0.9) & listed).astype(float)
+              weights = top.div(top.sum(axis=1).replace(0, np.nan), axis=0)
+              week = pd.Series(close.index.to_period("W"), index=close.index)
+              is_rebal = (week != week.shift(1)).to_numpy()
+              weights.loc[~is_rebal] = np.nan
+              return weights.ffill().fillna(0.0).where(listed, 0.0)
+          PY
+
+      - name: Backtest Auditor (must pass)
+        uses: ./
+        with:
+          paths: "ci_strategies/*.py"
+          fail-on: warning
+          format: markdown
+          upload-sarif: "false"

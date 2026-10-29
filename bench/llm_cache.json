@@ -1,0 +1,1597 @@
+{
+ "0014ce405774dd1a2b5deb8f": {
+  "at": "2026-10-29T02:48:48+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1294,
+    "cost_usd": 0.004291,
+    "latency_s": 6.26,
+    "prompt_tokens": 409,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1294,
+  "cost_usd": 0.004291,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 409,
+  "raw_tail": "",
+  "reason": "The groupby(transform='last') propagates the last trading day's portfolio weights to all earlier days in the same calendar month, so signals for early-month days use volatility rankings computed with future data from later in the month."
+ },
+ "04405552a758fabb8331ef65": {
+  "at": "2026-10-29T02:48:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 254,
+    "cost_usd": 0.001166,
+    "latency_s": 2.75,
+    "prompt_tokens": 404,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 254,
+  "cost_usd": 0.001166,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 404,
+  "raw_tail": "",
+  "reason": "The leader selection uses close.iloc[-1] and close.iloc[-252], which are the final rows of the full dataset, so the top 15 leaders are chosen with future knowledge and then applied to all historical dates, creating look-ahead and survivorship bias."
+ },
+ "0454a65a639901961e2aee17": {
+  "at": "2026-10-29T02:48:13+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 605,
+    "cost_usd": 0.002175,
+    "latency_s": 3.45,
+    "prompt_tokens": 360,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 605,
+  "cost_usd": 0.002175,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 360,
+  "raw_tail": "",
+  "reason": "The strategy computes today's returns from today's close (known at day t), ranks only currently listed tickers, and selects the 5 worst performers; no future data is used and delisted/unlisted tickers are properly excluded via the listed mask."
+ },
+ "08ca6c2c8c33cb582d0ff230": {
+  "at": "2026-10-29T02:45:08+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 819,
+    "cost_usd": 0.00085,
+    "latency_s": 10.99,
+    "prompt_tokens": 376,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 819,
+  "cost_usd": 0.00085,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 376,
+  "raw_tail": "",
+  "reason": "The signal uses only close prices up to and including day t (pct_change and rolling std with min_periods=60) and masks to currently listed tickers, so no future information is accessed."
+ },
+ "0e2c441539800aa22b7994e6": {
+  "at": "2026-10-29T02:48:16+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1388,
+    "cost_usd": 0.004553,
+    "latency_s": 6.77,
+    "prompt_tokens": 389,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1388,
+  "cost_usd": 0.004553,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 389,
+  "raw_tail": "",
+  "reason": "The strategy computes 3-month momentum using month-end closes available at each rebalance date, ranks cross-sectionally, and forward-fills weights to daily frequency; the engine executes each month-end signal at the next bar (t+1), so no future data is used. The listed mask is applied consistently, and the universe at each month-end includes only currently listed names, avoiding survivorship bias."
+ },
+ "129a6bd36b4ad483c1a53b51": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 606,
+    "cost_usd": 0.002213,
+    "latency_s": 3.85,
+    "prompt_tokens": 395,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 606,
+  "cost_usd": 0.002213,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 395,
+  "raw_tail": "",
+  "reason": "The volatility calculation reverses the return series, applies an expanding window, and reverses back, so each date's volatility uses all future returns through the end of the sample \u2014 a clear look-ahead bias."
+ },
+ "13ed70d56546ba5605a94d55": {
+  "at": "2026-10-29T02:48:47+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 993,
+    "cost_usd": 0.003363,
+    "latency_s": 5.13,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 993,
+  "cost_usd": 0.003363,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The strategy computes 60-day momentum, cross-sectional demeaning, and ranking using only data available up to and including the close of day t; it properly masks unlisted tickers and does not incorporate any future information or survivorship bias."
+ },
+ "1becc19d16ee04e468538ca5": {
+  "at": "2026-10-29T02:48:49+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1597,
+    "cost_usd": 0.005145,
+    "latency_s": 6.67,
+    "prompt_tokens": 354,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1597,
+  "cost_usd": 0.005145,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 354,
+  "raw_tail": "",
+  "reason": "All calculations use only data available at the close of day t (20-day return and cross-sectional rank), and the listed mask properly excludes delisted tickers, so there is no look-ahead or survivorship bias."
+ },
+ "1d994fa6ae8a043347849160": {
+  "at": "2026-10-29T02:45:15+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 501,
+    "cost_usd": 0.000581,
+    "latency_s": 4.65,
+    "prompt_tokens": 435,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 501,
+  "cost_usd": 0.000581,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 435,
+  "raw_tail": "",
+  "reason": "The strategy uses `clean = close.dropna(axis=1)` to keep only tickers with no missing data throughout the sample, which introduces survivorship bias by assuming future knowledge of which securities will remain listed."
+ },
+ "1e29396efd9af8223bdfd680": {
+  "at": "2026-10-29T02:45:20+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 529,
+    "cost_usd": 0.00061,
+    "latency_s": 4.61,
+    "prompt_tokens": 448,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 529,
+  "cost_usd": 0.00061,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 448,
+  "raw_tail": "",
+  "reason": "The regression coefficients are estimated using the entire history of each stock's log\u2011price, including future prices, so the residuals (and thus the rankings) at earlier dates incorporate forward\u2011looking information."
+ },
+ "20da1d282e04aa7dc42f1373": {
+  "at": "2026-10-29T02:45:11+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 294,
+    "cost_usd": 0.000383,
+    "latency_s": 3.82,
+    "prompt_tokens": 394,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 294,
+  "cost_usd": 0.000383,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 394,
+  "raw_tail": "",
+  "reason": "The rolling mean uses `center=True`, which incorporates future prices (up to 10 days ahead) when computing the fair value for each day, introducing look\u2011ahead bias."
+ },
+ "2154efe5291de3a233ff6419": {
+  "at": "2026-10-29T02:48:16+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1560,
+    "cost_usd": 0.005037,
+    "latency_s": 6.97,
+    "prompt_tokens": 357,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1560,
+  "cost_usd": 0.005037,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 357,
+  "raw_tail": "",
+  "reason": "The strategy uses only data available up to the close of day t (20-day return and cross-sectional ranking) and correctly masks delisted/unlisted tickers via the listed flag, avoiding look-ahead and survivorship bias."
+ },
+ "21dd909f9db1f26fb24d65d9": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 643,
+    "cost_usd": 0.002364,
+    "latency_s": 3.76,
+    "prompt_tokens": 435,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 643,
+  "cost_usd": 0.002364,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 435,
+  "raw_tail": "",
+  "reason": "The code uses `close.dropna(axis=1)` which removes any ticker with missing data at any point in the full sample, keeping only names that survive the entire backtest period \u2014 this is survivorship bias."
+ },
+ "23f75c27ab3afae058f9b948": {
+  "at": "2026-10-29T02:45:13+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 796,
+    "cost_usd": 0.000842,
+    "latency_s": 7.72,
+    "prompt_tokens": 417,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 796,
+  "cost_usd": 0.000842,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 417,
+  "raw_tail": "",
+  "reason": "The signal uses EWMA values shifted by one period (i.e., yesterday's EWMA) and the current day's listing status, so no future price information is accessed."
+ },
+ "24c4d544494321617dbd5a64": {
+  "at": "2026-10-29T02:48:47+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1227,
+    "cost_usd": 0.004094,
+    "latency_s": 5.5,
+    "prompt_tokens": 413,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1227,
+  "cost_usd": 0.004094,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 413,
+  "raw_tail": "",
+  "reason": "The strategy filters the universe using the final date's listing status (close.iloc[-1]), which introduces survivorship bias by excluding delisted stocks from all historical periods."
+ },
+ "278fef8f66d86a02b5315d23": {
+  "at": "2026-10-29T02:48:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 276,
+    "cost_usd": 0.001212,
+    "latency_s": 2.84,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 276,
+  "cost_usd": 0.001212,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The peak is computed as the cumulative maximum from each date to the end of the series (via reversal), so the discount uses future price information."
+ },
+ "29bc1c8914c126ae16e67ce9": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 842,
+    "cost_usd": 0.00291,
+    "latency_s": 4.51,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 842,
+  "cost_usd": 0.00291,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The standardization step (z = (mom - mom.mean()) / mom.std()) computes mean and standard deviation over the full history of each ticker, incorporating future data not available at the signal date."
+ },
+ "2bd13779939fb24d04be68f0": {
+  "at": "2026-10-29T02:45:20+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 734,
+    "cost_usd": 0.000779,
+    "latency_s": 5.83,
+    "prompt_tokens": 395,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 734,
+  "cost_usd": 0.000779,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 395,
+  "raw_tail": "",
+  "reason": "The volatility calculation reverses the returns series before applying an expanding std, which effectively uses future returns (from t+1 onward) to estimate volatility at time t, introducing look\u2011ahead bias."
+ },
+ "2eb4b6a2f287710ffa084366": {
+  "at": "2026-10-29T02:47:41+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1009,
+    "cost_usd": 0.001031,
+    "latency_s": 12.23,
+    "prompt_tokens": 409,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1009,
+  "cost_usd": 0.001031,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 409,
+  "raw_tail": "",
+  "reason": "The signal uses only close prices up to day t (including a 5\u2011day lag) and correlations of lagged signals with same\u2011day returns; no future prices or returns are consulted, and the listed mask excludes delisted/missing data, avoiding survivorship bias."
+ },
+ "30426920a7ffad515ab4a01c": {
+  "at": "2026-10-29T02:47:41+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 749,
+    "cost_usd": 0.000797,
+    "latency_s": 11.51,
+    "prompt_tokens": 409,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 749,
+  "cost_usd": 0.000797,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 409,
+  "raw_tail": "",
+  "reason": "The strategy computes daily weights but then replaces them with the month\u2011end weight via groupby transform('last'), using future volatility information from later days in the month to set positions for earlier days."
+ },
+ "307fbdd9d67461a8e2a9d21e": {
+  "at": "2026-10-29T02:45:10+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1152,
+    "cost_usd": 0.001153,
+    "latency_s": 13.19,
+    "prompt_tokens": 387,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1152,
+  "cost_usd": 0.001153,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 387,
+  "raw_tail": "",
+  "reason": "The signal uses only close prices up to day t (forward\u2011filled for missing values) and a rolling mean that depends on past 20 days; selection is further masked by the same\u2011day listed flag, so no future data is accessed."
+ },
+ "30a67fd7f9630c6f24c1b9c1": {
+  "at": "2026-10-29T02:45:20+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 791,
+    "cost_usd": 0.000833,
+    "latency_s": 6.33,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 791,
+  "cost_usd": 0.000833,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The weekly weights are reindexed to daily using backfill (bfill), which assigns the upcoming Friday's weight to earlier days in the week, thus using future information."
+ },
+ "3cfa1a8a8d8b3f153ebbb3fa": {
+  "at": "2026-10-29T02:45:21+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 782,
+    "cost_usd": 0.000823,
+    "latency_s": 6.63,
+    "prompt_tokens": 396,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 782,
+  "cost_usd": 0.000823,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 396,
+  "raw_tail": "",
+  "reason": "The function shifts the momentum signal backward by one day (shift(-1)), so the signal for day t uses momentum computed from day t+1\u2019s close, which is not known at the close of day t \u2013 a look\u2011ahead bias."
+ },
+ "41c471dc84e3ff1807c2367e": {
+  "at": "2026-10-29T02:45:15+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 712,
+    "cost_usd": 0.000751,
+    "latency_s": 7.33,
+    "prompt_tokens": 369,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 712,
+  "cost_usd": 0.000751,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 369,
+  "raw_tail": "",
+  "reason": "The code forward\u2011fills missing close prices (bfill), which injects future price information into past days, creating look\u2011ahead bias."
+ },
+ "43a41036d77793c4b54038e2": {
+  "at": "2026-10-29T02:48:23+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009407,
+    "latency_s": 13.42,
+    "prompt_tokens": 407,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 3000,
+  "cost_usd": 0.009407,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 407,
+  "raw_tail": "",
+  "reason": ""
+ },
+ "48d11562b660bc3e5d6031f7": {
+  "at": "2026-10-29T02:47:48+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1574,
+    "cost_usd": 0.001532,
+    "latency_s": 18.46,
+    "prompt_tokens": 386,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1574,
+  "cost_usd": 0.001532,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 386,
+  "raw_tail": "",
+  "reason": "The code does not use future data to compute signals, but it restricts trading to currently listed stocks via the close.notna() mask, thereby dropping delisted names and introducing survivorship bias."
+ },
+ "48d193f52c8494f8e0f43903": {
+  "at": "2026-10-29T02:48:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 521,
+    "cost_usd": 0.001957,
+    "latency_s": 3.5,
+    "prompt_tokens": 394,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 521,
+  "cost_usd": 0.001957,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 394,
+  "raw_tail": "",
+  "reason": "The rolling window uses center=True, which centers the 21-day window on the current date and therefore incorporates up to 10 future days of price data into the 'fair' value calculation, creating look-ahead bias."
+ },
+ "4ab9de7067287086471cb473": {
+  "at": "2026-10-29T02:47:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1464,
+    "cost_usd": 0.001434,
+    "latency_s": 16.12,
+    "prompt_tokens": 389,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1464,
+  "cost_usd": 0.001434,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 389,
+  "raw_tail": "",
+  "reason": "The signal uses only month-end close prices available on or before the decision date; forward\u2011filling assigns the prior month\u2019s signal to each day, and non\u2011listed tickers are zeroed, so no future information or survivorship bias is introduced."
+ },
+ "4cd7d606c45fa9944951aa3f": {
+  "at": "2026-10-29T02:45:18+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 614,
+    "cost_usd": 0.000663,
+    "latency_s": 5.18,
+    "prompt_tokens": 367,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 614,
+  "cost_usd": 0.000663,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 367,
+  "raw_tail": "",
+  "reason": "The percentile ranking is computed over the full momentum history (including future days) using `mom.rank(axis=0, pct=True)`, so determining whether today's momentum exceeds the 80th percentile relies on future data that is not available at time t."
+ },
+ "4f80658b9358f48ab04ff72c": {
+  "at": "2026-10-29T02:47:36+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 500,
+    "cost_usd": 0.000556,
+    "latency_s": 6.32,
+    "prompt_tokens": 354,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 500,
+  "cost_usd": 0.000556,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 354,
+  "raw_tail": "",
+  "reason": "The signal is constructed solely from close prices up to the current day (using pct_change(20) and a not\u2011na mask); no future prices or information are accessed."
+ },
+ "5186273ae592cd155878b06a": {
+  "at": "2026-10-29T02:45:24+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 601,
+    "cost_usd": 0.000654,
+    "latency_s": 9.87,
+    "prompt_tokens": 377,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 601,
+  "cost_usd": 0.000654,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 377,
+  "raw_tail": "",
+  "reason": "The breakout level is computed as each stock's 80th percentile momentum over the entire sample (including future days), so the signal at time t depends on future price information."
+ },
+ "53d69660f33801bd3bc939ba": {
+  "at": "2026-10-29T02:45:07+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 639,
+    "cost_usd": 0.000683,
+    "latency_s": 9.65,
+    "prompt_tokens": 360,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 639,
+  "cost_usd": 0.000683,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 360,
+  "raw_tail": "",
+  "reason": "The signal uses only today's close and the prior day's close to compute today's return, which is known at the close of day t. Ranking and selection are based on this information and properly exclude missing (unlisted) prices, so no look\u2011ahead or survivorship bias is introduced."
+ },
+ "5414fae2f91d4e79df0b4dbc": {
+  "at": "2026-10-29T02:48:12+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 450,
+    "cost_usd": 0.001724,
+    "latency_s": 3.02,
+    "prompt_tokens": 374,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 450,
+  "cost_usd": 0.001724,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 374,
+  "raw_tail": "",
+  "reason": "The signal uses only close prices up to day t (via pct_change(20)) and cross-sectional statistics computed at day t; no future data is referenced. The .where(listed) filter respects the NaN structure of the input data at each date, avoiding survivorship bias."
+ },
+ "54bd8555ab98a170b70b943e": {
+  "at": "2026-10-29T02:48:54+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009389,
+    "latency_s": 11.15,
+    "prompt_tokens": 389,
+    "thinking": true
+   },
+   {
+    "completion_tokens": 55,
+    "cost_usd": 0.000554,
+    "latency_s": 0.57,
+    "prompt_tokens": 389,
+    "thinking": false
+   }
+  ],
+  "completion_tokens": 3055,
+  "cost_usd": 0.009943,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 778,
+  "raw_tail": "",
+  "reason": "The strategy correctly uses monthly resampled close prices and shifts momentum by 3 months, then forward-fills monthly weights to daily frequency without accessing future data; NaN handling via listed mask avoids survivorship bias."
+ },
+ "5640df4b9ae767d191777f96": {
+  "at": "2026-10-29T02:48:21+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009387,
+    "latency_s": 11.06,
+    "prompt_tokens": 387,
+    "thinking": true
+   },
+   {
+    "completion_tokens": 67,
+    "cost_usd": 0.000588,
+    "latency_s": 0.96,
+    "prompt_tokens": 387,
+    "thinking": false
+   }
+  ],
+  "completion_tokens": 3067,
+  "cost_usd": 0.009975,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 774,
+  "raw_tail": "",
+  "reason": "The code uses only data available up to the close of day t (close prices, rolling mean, rank) and correctly masks with the 'listed' flag so delisted/IPO tickers are excluded; ffill carries the last known price but does not introduce future information."
+ },
+ "5c350de9232ff2c54da0cec2": {
+  "at": "2026-10-29T02:48:15+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1166,
+    "cost_usd": 0.003915,
+    "latency_s": 5.76,
+    "prompt_tokens": 417,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1166,
+  "cost_usd": 0.003915,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 417,
+  "raw_tail": "",
+  "reason": "The `peek_next` function shifts the EWMA series forward by one period, so the signal at time t uses the EWMA value from time t+1 (which includes the close of day t+1), introducing look-ahead bias."
+ },
+ "5c377049069d2d6d23ef1731": {
+  "at": "2026-10-29T02:48:44+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 289,
+    "cost_usd": 0.001234,
+    "latency_s": 2.63,
+    "prompt_tokens": 367,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 289,
+  "cost_usd": 0.001234,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 367,
+  "raw_tail": "",
+  "reason": "The percentile rank (rank(axis=0, pct=True)) computes each day's momentum rank against the stock's entire history including future dates, so the signal at time t uses future momentum values to determine its percentile."
+ },
+ "66940740f2b42a8ea72dceae": {
+  "at": "2026-10-29T02:45:08+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 795,
+    "cost_usd": 0.000836,
+    "latency_s": 10.66,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 795,
+  "cost_usd": 0.000836,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The signal is constructed solely from close prices up to and including day t (using pct_change, expanding statistics, and a listedness mask), so no future data is accessed; delisted or unlisted stocks are excluded, avoiding survivorship bias."
+ },
+ "6b26b35fb7ff494ce1cd9fb9": {
+  "at": "2026-10-29T02:48:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 469,
+    "cost_usd": 0.001832,
+    "latency_s": 2.93,
+    "prompt_tokens": 425,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 469,
+  "cost_usd": 0.001832,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 425,
+  "raw_tail": "",
+  "reason": "The code computes the information coefficient using `fwd = ret.shift(-1)`, which brings future returns (t+1) into the rolling correlation at time t, creating look-ahead bias when selecting signals."
+ },
+ "703354f5952589d8a0570c18": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 835,
+    "cost_usd": 0.002907,
+    "latency_s": 4.46,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 835,
+  "cost_usd": 0.002907,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The 'seasoned' filter uses close.count() >= 1200 computed over the full sample history, so at any date t it incorporates future knowledge about how long each stock will remain listed."
+ },
+ "724c995f6108c47fac993629": {
+  "at": "2026-10-29T02:48:49+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1414,
+    "cost_usd": 0.004644,
+    "latency_s": 6.66,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1414,
+  "cost_usd": 0.004644,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The weekly rebalancing uses `reindex(..., method='bfill')` which backfills Friday's portfolio weights to prior trading days (Mon\u2013Thu), so the strategy uses Friday's close-to-close decision before it is available."
+ },
+ "7318b850d782a32c69f6a3b5": {
+  "at": "2026-10-29T02:47:37+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 623,
+    "cost_usd": 0.000688,
+    "latency_s": 7.52,
+    "prompt_tokens": 425,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 623,
+  "cost_usd": 0.000688,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 425,
+  "raw_tail": "",
+  "reason": "The IC calculation uses `fwd = ret.shift(-1)`, i.e., tomorrow's return, inside a rolling correlation that informs today's signal, thereby incorporating future information."
+ },
+ "7daa3817347b6f3eba18f9e4": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 762,
+    "cost_usd": 0.002663,
+    "latency_s": 4.37,
+    "prompt_tokens": 377,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 762,
+  "cost_usd": 0.002663,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 377,
+  "raw_tail": "",
+  "reason": "The 80th percentile momentum threshold per stock is computed over the full sample (including future data) via groupby(level=1).quantile(0.8), then applied to historical dates, creating look-ahead bias."
+ },
+ "8153ed17e76e13803f79d136": {
+  "at": "2026-10-29T02:48:12+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 276,
+    "cost_usd": 0.00123,
+    "latency_s": 2.32,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 276,
+  "cost_usd": 0.00123,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The strategy uses only historical data up to day t via expanding windows (mean/std) and cross-sectional ranking, with proper masking for unlisted stocks; no future information is accessed."
+ },
+ "847c98db72d9edad0b455c6b": {
+  "at": "2026-10-29T02:45:14+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 902,
+    "cost_usd": 0.000924,
+    "latency_s": 7.63,
+    "prompt_tokens": 373,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 902,
+  "cost_usd": 0.000924,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 373,
+  "raw_tail": "",
+  "reason": "The momentum is shifted backward with `mom = mom.shift(-1)`, so the signal for day t uses the close price of day t+1, which is not available at the close of day t, introducing look\u2011ahead bias."
+ },
+ "8d87f240120771167140bfef": {
+  "at": "2026-10-29T02:45:14+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 263,
+    "cost_usd": 0.000358,
+    "latency_s": 3.45,
+    "prompt_tokens": 404,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 263,
+  "cost_usd": 0.000358,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 404,
+  "raw_tail": "",
+  "reason": "The leader selection uses the final close price of the entire sample (iloc[-1]) to compute 1\u2011year returns, which incorporates future information unavailable at earlier dates."
+ },
+ "91316fb27b15036d78fd290f": {
+  "at": "2026-10-29T02:45:21+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 475,
+    "cost_usd": 0.000543,
+    "latency_s": 8.23,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 475,
+  "cost_usd": 0.000543,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The running peak is computed via a reverse cumulative maximum, which incorporates future close prices, creating look\u2011ahead bias."
+ },
+ "9913bcc554aa3bade8910da3": {
+  "at": "2026-10-29T02:48:12+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 344,
+    "cost_usd": 0.001405,
+    "latency_s": 2.49,
+    "prompt_tokens": 373,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 344,
+  "cost_usd": 0.001405,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 373,
+  "raw_tail": "",
+  "reason": "The strategy uses only historical data up to day t (including day t's close) to compute moving averages and generate signals for execution at t+1, with proper handling of NaN for unlisted stocks."
+ },
+ "a3a4981137cdb43e1e20defe": {
+  "at": "2026-10-29T02:48:52+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2716,
+    "cost_usd": 0.008534,
+    "latency_s": 9.9,
+    "prompt_tokens": 386,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2716,
+  "cost_usd": 0.008534,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 386,
+  "raw_tail": "",
+  "reason": "The strategy computes a 20-day moving average using only past and current data (by rolling on a reversed index), ranks stocks based on current deviation, and only selects from currently listed tickers, avoiding both look-ahead and survivorship bias."
+ },
+ "a3bf4c79a689c08480fe4c20": {
+  "at": "2026-10-29T02:48:23+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009424,
+    "latency_s": 12.71,
+    "prompt_tokens": 424,
+    "thinking": true
+   },
+   {
+    "completion_tokens": 79,
+    "cost_usd": 0.000661,
+    "latency_s": 0.9,
+    "prompt_tokens": 424,
+    "thinking": false
+   }
+  ],
+  "completion_tokens": 3079,
+  "cost_usd": 0.010085,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 848,
+  "raw_tail": "",
+  "reason": "The code uses only past data (shifted close prices) to compute momentum and ranks, and the monthly rebalance logic correctly applies weights starting the day after the decision date via forward-fill. No future information is accessed, and the 'listed' mask prevents survivorship bias by excluding delisted or not-yet-listed tickers."
+ },
+ "a69ba13682df2ea000b78d35": {
+  "at": "2026-10-29T02:48:52+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2831,
+    "cost_usd": 0.008866,
+    "latency_s": 10.4,
+    "prompt_tokens": 373,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2831,
+  "cost_usd": 0.008866,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 373,
+  "raw_tail": "",
+  "reason": "The shift(-1) moves the 20-day momentum signal forward by one day, so the signal at row t uses close prices from day t+1, which are not available at the decision time (after the close of day t)."
+ },
+ "ad778650fb7bd8cb1cd77fb7": {
+  "at": "2026-10-29T02:48:45+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 309,
+    "cost_usd": 0.001305,
+    "latency_s": 2.75,
+    "prompt_tokens": 378,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 309,
+  "cost_usd": 0.001305,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 378,
+  "raw_tail": "",
+  "reason": "pd.qcut computes quintile cutoffs using the entire stacked momentum series across all dates, so bucket assignments for day t incorporate future momentum values, creating look-ahead bias."
+ },
+ "ae9c1f3f649c0fe65d8828ca": {
+  "at": "2026-10-29T02:45:13+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1352,
+    "cost_usd": 0.001336,
+    "latency_s": 15.6,
+    "prompt_tokens": 399,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1352,
+  "cost_usd": 0.001336,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 399,
+  "raw_tail": "",
+  "reason": "The strategy computes volatility and rankings using only historical data up to each day's close, and applies the first\u2011day-of\u2011month weights uniformly throughout the month\u2014information that was available at the time of the decision, so no look\u2011ahead or survivorship bias is introduced."
+ },
+ "b06934fab9e6c66f1edc9129": {
+  "at": "2026-10-29T02:47:39+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 715,
+    "cost_usd": 0.000759,
+    "latency_s": 10.28,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 715,
+  "cost_usd": 0.000759,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The signal uses only past prices (pct_change over the last 60 days) and excludes securities that are not yet listed or already delisted via a contemporaneous listed mask, so no future information is accessed."
+ },
+ "b284af484b082c831053e63f": {
+  "at": "2026-10-29T02:45:06+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 486,
+    "cost_usd": 0.00055,
+    "latency_s": 8.38,
+    "prompt_tokens": 374,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 486,
+  "cost_usd": 0.00055,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 374,
+  "raw_tail": "",
+  "reason": "The signal uses only close prices up to and including day t (20\u2011day return, mean, std) and does not incorporate any future data; missing data due to IPOs/delists are handled by ignoring them in cross\u2011sectional statistics, so there is no look\u2011ahead or survivorship bias."
+ },
+ "b4eb532c28be3b29153ed0c0": {
+  "at": "2026-10-29T02:48:22+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009474,
+    "latency_s": 12.54,
+    "prompt_tokens": 474,
+    "thinking": true
+   },
+   {
+    "completion_tokens": 87,
+    "cost_usd": 0.000735,
+    "latency_s": 0.63,
+    "prompt_tokens": 474,
+    "thinking": false
+   }
+  ],
+  "completion_tokens": 3087,
+  "cost_usd": 0.010209,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 948,
+  "raw_tail": "",
+  "reason": "All calculations use only data available through the close of day t: momentum uses a 60-day lookback on past closes, ranking is cross-sectional on that day, and the volatility scaler uses a rolling standard deviation of historical portfolio returns up to day t. The weights for day t are applied at t+1 by the engine, so no future information is used."
+ },
+ "b9d587215d945c1c13f0fb34": {
+  "at": "2026-10-29T02:45:23+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 310,
+    "cost_usd": 0.0004,
+    "latency_s": 4.76,
+    "prompt_tokens": 405,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 310,
+  "cost_usd": 0.0004,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 405,
+  "raw_tail": "",
+  "reason": "The code computes liquidity using the last 60 rows of the entire volume dataframe (.iloc[-60:]), which includes future volume information when generating signals for earlier dates, introducing look\u2011ahead bias."
+ },
+ "badac14615c7e3fc8454c570": {
+  "at": "2026-10-29T02:47:39+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 716,
+    "cost_usd": 0.000755,
+    "latency_s": 9.93,
+    "prompt_tokens": 368,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 716,
+  "cost_usd": 0.000755,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 368,
+  "raw_tail": "",
+  "reason": "The code fills missing momentum values with the overall mean of mom computed across the entire dataset, which incorporates future returns, thus using look\u2011ahead information."
+ },
+ "bb3f47f653e75b2d6dfe9fad": {
+  "at": "2026-10-29T02:48:19+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2647,
+    "cost_usd": 0.008317,
+    "latency_s": 9.61,
+    "prompt_tokens": 376,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2647,
+  "cost_usd": 0.008317,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 376,
+  "raw_tail": "",
+  "reason": "The strategy uses only data up to day t (including close[t]) to compute volatility and select stocks, and masks with the current listed universe, avoiding look-ahead and survivorship bias."
+ },
+ "c08d3d1c6cd767a4a0914aa8": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 591,
+    "cost_usd": 0.002221,
+    "latency_s": 4.27,
+    "prompt_tokens": 448,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 591,
+  "cost_usd": 0.002221,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 448,
+  "raw_tail": "",
+  "reason": "The linear trend for each stock is fitted on its entire available price history, including future data relative to each signal date, so residuals incorporate look-ahead information."
+ },
+ "c568c59d8ee9cb32d8118553": {
+  "at": "2026-10-29T02:45:23+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2980,
+    "cost_usd": 0.002824,
+    "latency_s": 26.27,
+    "prompt_tokens": 474,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2980,
+  "cost_usd": 0.002824,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 474,
+  "raw_tail": "",
+  "reason": "All computations rely on data known at or before the close of the day for which weights are generated; no future prices or returns are used."
+ },
+ "c6070d0c31e2c01c101fd53e": {
+  "at": "2026-10-29T02:45:13+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1435,
+    "cost_usd": 0.001419,
+    "latency_s": 15.46,
+    "prompt_tokens": 424,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1435,
+  "cost_usd": 0.001419,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 424,
+  "raw_tail": "",
+  "reason": "The signal relies only on lagged close prices (shifted 21 and 252 days) and the current listing indicator; no future data is accessed, and delisted or not\u2011yet\u2011listed stocks are correctly masked out."
+ },
+ "c693196f84af702f84a878bb": {
+  "at": "2026-10-29T02:48:48+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1263,
+    "cost_usd": 0.004185,
+    "latency_s": 6.15,
+    "prompt_tokens": 396,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1263,
+  "cost_usd": 0.004185,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 396,
+  "raw_tail": "",
+  "reason": "The 5-day momentum at row t uses close[t], then to_trade_date shifts it up one row (shift(-1)), placing it in row t-1; thus the signal decided after close of day t-1 incorporates day t's close price, which is future information."
+ },
+ "c7d2b82d23ed47c411d04963": {
+  "at": "2026-10-29T02:48:46+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 680,
+    "cost_usd": 0.002445,
+    "latency_s": 4.07,
+    "prompt_tokens": 405,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 680,
+  "cost_usd": 0.002445,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 405,
+  "raw_tail": "",
+  "reason": "The liquidity universe is defined using `data[\"volume\"].iloc[-60:].median()`, which computes median volume over the final 60 days of the entire dataset. This future information is then applied to all historical rows, creating look-ahead bias."
+ },
+ "c8384ae675a6df0883af8867": {
+  "at": "2026-10-29T02:45:24+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 563,
+    "cost_usd": 0.000627,
+    "latency_s": 7.87,
+    "prompt_tokens": 402,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 563,
+  "cost_usd": 0.000627,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 402,
+  "raw_tail": "",
+  "reason": "The seasoned filter uses close.count() >= 1200, which looks at the total number of non\u2011NaN observations for each ticker across the whole dataset, incorporating future data to decide if a stock is seasoned."
+ },
+ "d352eebba360af39d7479a28": {
+  "at": "2026-10-29T02:48:20+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2974,
+    "cost_usd": 0.009331,
+    "latency_s": 10.73,
+    "prompt_tokens": 409,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2974,
+  "cost_usd": 0.009331,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 409,
+  "raw_tail": "",
+  "reason": "All calculations at row t use only data available at or before the close of day t: sig[t] uses close[t], ic[t] uses ret[t] (known at close), and the listed mask correctly excludes delisted/IPO stocks at each date. The rolling correlation includes the most recent signal-return pair (sig[t-1], ret[t]) which is observable at decision time."
+ },
+ "d90ccd0f6d97ecb8f7b17299": {
+  "at": "2026-10-29T02:47:42+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1073,
+    "cost_usd": 0.001096,
+    "latency_s": 13.16,
+    "prompt_tokens": 434,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1073,
+  "cost_usd": 0.001096,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 434,
+  "raw_tail": "",
+  "reason": "The signal uses only lagged prices (shift) and the known date index to determine month-ends; it excludes delisted stocks via the listed mask, so no future price or fundamental information is accessed."
+ },
+ "dcefc170e14f4f634592f9e8": {
+  "at": "2026-10-29T02:48:47+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 731,
+    "cost_usd": 0.002561,
+    "latency_s": 4.68,
+    "prompt_tokens": 368,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 731,
+  "cost_usd": 0.002561,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 368,
+  "raw_tail": "",
+  "reason": "mom.fillna(mom.mean()) fills missing momentum values with each ticker's mean momentum computed over the entire sample period (including future dates), introducing look-ahead bias when ranking at each date t."
+ },
+ "e15b141038e8ec253bf7ef1a": {
+  "at": "2026-10-29T02:48:47+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 941,
+    "cost_usd": 0.003192,
+    "latency_s": 5.52,
+    "prompt_tokens": 369,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 941,
+  "cost_usd": 0.003192,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 369,
+  "raw_tail": "",
+  "reason": "The use of `bfill()` on close prices fills pre-IPO NaN values with the first available future price, introducing look-ahead bias."
+ },
+ "e291ac6bd7e16324c746969b": {
+  "at": "2026-10-29T02:47:53+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2459,
+    "cost_usd": 0.00233,
+    "latency_s": 24.05,
+    "prompt_tokens": 389,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2459,
+  "cost_usd": 0.00233,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 389,
+  "raw_tail": "",
+  "reason": "The strategy computes weights using only data available up to the close of the decision day (month\u2011end prices lagged by three months) and forwards those weights to future days; it also zeros out holdings for non\u2011listed securities, so no look\u2011ahead or survivorship bias is present."
+ },
+ "ea1829c346e509cc2834e881": {
+  "at": "2026-10-29T02:45:16+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 681,
+    "cost_usd": 0.000728,
+    "latency_s": 7.82,
+    "prompt_tokens": 384,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 681,
+  "cost_usd": 0.000728,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 384,
+  "raw_tail": "",
+  "reason": "The code standardizes each ticker's momentum using its overall mean and standard deviation computed over the entire history, which incorporates future data when calculating signals for past dates."
+ },
+ "ec6a69593ec405809e6e650d": {
+  "at": "2026-10-29T02:45:07+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 636,
+    "cost_usd": 0.000684,
+    "latency_s": 9.63,
+    "prompt_tokens": 373,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 636,
+  "cost_usd": 0.000684,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 373,
+  "raw_tail": "",
+  "reason": "The signal uses only prices up to and including the close of day t (rolling means with min_periods equal to the window length) and excludes stocks only after their price becomes NaN, so no future information or survivorship bias is introduced."
+ },
+ "ee12a7a26465f18bde535aca": {
+  "at": "2026-10-29T02:48:23+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 3000,
+    "cost_usd": 0.009434,
+    "latency_s": 12.92,
+    "prompt_tokens": 434,
+    "thinking": true
+   },
+   {
+    "completion_tokens": 71,
+    "cost_usd": 0.000647,
+    "latency_s": 0.63,
+    "prompt_tokens": 434,
+    "thinking": false
+   }
+  ],
+  "completion_tokens": 3071,
+  "cost_usd": 0.010081,
+  "leaky": true,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 868,
+  "raw_tail": "",
+  "reason": "The code uses `month.shift(-1)` to identify month-end dates, which accesses the next row's month value (future information) to set `month_end`; this creates look-ahead bias because the signal for day t depends on whether day t+1 is in a new month."
+ },
+ "f2d51bc377b82d9781ca6568": {
+  "at": "2026-10-29T02:45:25+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 751,
+    "cost_usd": 0.0008,
+    "latency_s": 9.73,
+    "prompt_tokens": 413,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 751,
+  "cost_usd": 0.0008,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 413,
+  "raw_tail": "",
+  "reason": "The function determines the set of tradable stocks by looking at the last row of the close DataFrame (close.iloc[-1]), which incorporates information about which securities survive until the end of the sample. This introduces survivorship bias because it uses future delisting information to filter stocks for earlier dates."
+ },
+ "f7eea7cf122fefaebb5736b3": {
+  "at": "2026-10-29T02:47:37+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 598,
+    "cost_usd": 0.000645,
+    "latency_s": 7.68,
+    "prompt_tokens": 357,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 598,
+  "cost_usd": 0.000645,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 357,
+  "raw_tail": "",
+  "reason": "The strategy computes 20\u2011day returns using only past close prices, ranks them cross\u2011sectionally for each day, and weights only currently listed stocks; no future data is accessed."
+ },
+ "f9aeb54210e0b5f426150fcd": {
+  "at": "2026-10-29T02:45:14+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 1540,
+    "cost_usd": 0.001508,
+    "latency_s": 16.58,
+    "prompt_tokens": 407,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 1540,
+  "cost_usd": 0.001508,
+  "leaky": false,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 407,
+  "raw_tail": "",
+  "reason": "The signal uses only historical close prices up to each day's close to compute 20\u2011day momentum and ranks, and rebalances based on Friday's close; no future data is accessed, so there is no look\u2011ahead or survivorship bias."
+ },
+ "fd32c7aaedd8da545ac1e023": {
+  "at": "2026-10-29T02:48:18+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 2427,
+    "cost_usd": 0.00768,
+    "latency_s": 9.25,
+    "prompt_tokens": 399,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 2427,
+  "cost_usd": 0.00768,
+  "leaky": false,
+  "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+  "parsed": true,
+  "prompt_tokens": 399,
+  "raw_tail": "",
+  "reason": "The code computes 60-day volatility using only past and current closes, ranks cross-sectionally at each date, and forward-fills the first trading day's weights within each month; no future data is referenced, and the listed mask correctly handles IPOs/delistings without adding survivorship bias."
+ },
+ "fdbaadb85d0d3e2b8f6824d9": {
+  "at": "2026-10-29T02:47:38+00:00",
+  "attempts": [
+   {
+    "completion_tokens": 510,
+    "cost_usd": 0.000572,
+    "latency_s": 8.37,
+    "prompt_tokens": 378,
+    "thinking": true
+   }
+  ],
+  "completion_tokens": 510,
+  "cost_usd": 0.000572,
+  "leaky": true,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "parsed": true,
+  "prompt_tokens": 378,
+  "raw_tail": "",
+  "reason": "The quintile thresholds are computed via pd.qcut on the stacked momentum series that includes all dates (including future ones), so the ranking uses future information to decide which stocks are in the top quintile."
+ }
+}
