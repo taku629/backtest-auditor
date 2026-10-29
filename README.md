@@ -159,6 +159,12 @@ on LeakBench it pins the right line for **24/24** leaky strategies (including `r
 and reports no leak for 15/15 clean ones. The line is highlighted in the UI, annotated in CI, and handed to the
 Nemotron Auditor ("Leak enters at line 13: `pctl = mom.rank(pct=True)`"). See `bench/LOCALIZE.md`.
 
+## Repair benchmark
+
+`bench/REPAIR.md`: live Nemotron loop on the 24 leaky strategies, 3 runs each, with and without the localization hint.
+Repaired 69/72 (with hint) vs 70/72 (without); the hint cuts Auditor output tokens by 46% and wrong line references
+from 5 to 1; no run passed by going to cash; all failures were Coder rewrites crashing in the sandbox. $1.08 total.
+
 ## Jupyter notebooks
 
 Upload an `.ipynb` in the app or pass it to the CLI: code cells are concatenated (magics skipped), `generate_signals`
