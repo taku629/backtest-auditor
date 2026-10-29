@@ -33,8 +33,8 @@ jobs:
           CODE: ${{ steps.audit.outputs.exit-code }}
         run: |
           echo "audit outcome=$OUTCOME exit-code=$CODE"
-          if [ "$OUTCOME" != "failure" ]; then
-            echo "::error::examples/leaky_momentum.py should fail the audit, but it passed."
+          if [ "$OUTCOME" != "failure" ] || [ "$CODE" != "1" ]; then
+            echo "::error::examples/leaky_momentum.py should be flagged by the audit (exit code 1); got outcome=$OUTCOME exit-code=$CODE."
             exit 1
           fi
           echo "As expected: the deliberately leaky example was blocked."
