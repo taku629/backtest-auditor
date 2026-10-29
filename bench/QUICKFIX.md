@@ -1,6 +1,6 @@
 # Quick fix: deterministic, LLM-free repair on LeakBench
 
-Generated 2026-10-29 10:07 UTC · no LLM calls · data: synthetic panel 50 tickers × 1512 days · reproduce with `python -m bench.run_quickfix` (offline, $0).
+Generated 2026-10-29 11:34 UTC · no LLM calls · data: synthetic panel 50 tickers × 1512 days · reproduce with `python -m bench.run_quickfix` (offline, $0).
 
 After the audit fails, `audit/quickfix.py` takes the line the dynamic localizer pinned (plus the lines the static scan flags), generates candidate patches from a fixed list of general pandas rewrite rules (negative shift → positive, centred → trailing window, bfill → ffill, rank → rank(axis=1) or expanding rank, full-sample statistic → expanding, start-labelled resample → end-labelled, transform('last') → 'first', drop a time reversal, pooled quantile → per date, dropna(axis=1) → keep all tickers, and a last-resort `.shift(1)` of the localized value), and re-runs the full deterministic audit on each. **Fixed** = the first candidate that passes every blocking test *and* is not over-corrected (`non_trivial` passes and mean gross exposure ≥ 5%, the repair benchmark's rule).
 
@@ -8,7 +8,7 @@ After the audit fails, `audit/quickfix.py` takes the line the dynamic localizer 
 
 | Method | Repaired (leaky) | Changes on clean code | Cost per repair | Time per strategy (incl. audits) |
 |---|---|---|---|---|
-| **Quick fix (deterministic, no LLM)** | **19/24 strategies (79%)** | 0/15 | **$0** | 9 s median (max 61 s) |
+| **Quick fix (deterministic, no LLM)** | **19/24 strategies (79%)** | 0/15 | **$0** | 4 s median (max 17 s) |
 | LLM loop (Nemotron Super + Ultra, `bench/REPAIR.md`, condition A) | 69/72 runs (96%) | not measured | $0.0072 | 19 s median per run (max 222 s) |
 
 Deterministic: rerunning gives the same patch (no sampling), so one run per strategy is the whole result, while the LLM numbers are over 3 sampled runs per strategy. Sharpe values below are from this run (pandas 2.3.3); a few leaky drafts score differently from `bench/REPAIR.md`, which was generated in another environment.

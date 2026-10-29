@@ -27,13 +27,14 @@ from __future__ import annotations
 import ast
 import itertools
 import math
+import os
 import time
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
-MAX_VARIANTS = 16
+MAX_VARIANTS = int(os.environ.get("PBO_MAX_VARIANTS", "8" if os.environ.get("RENDER") else "16"))  # Render free tier has 0.1 CPU
 MAX_EXPLICIT_PARAMS = 4
 MAX_INLINE_PARAMS = 3
 LEVELS_1D = (0.5, 0.6, 0.7, 0.85, 1.0, 1.2, 1.4, 1.7, 2.0)

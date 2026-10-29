@@ -522,14 +522,15 @@ def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int
             seen.add(new)
             out.append(Candidate(rule, desc, new, sorted({n.lineno for n, _ in edits})))
 
-    for opts in per_line:
-        for r, d, e, ln in opts:
-            add(r, d, e, [ln])
-    # several flagged lines: apply the best option of each together
+    # several flagged lines (independent leaks usually need all of them fixed): try the best option of each
+    # together first, so a multi-leak draft costs one sandboxed audit instead of one per single-line patch
     firsts = [o[0] for o in per_line if o]
     if len(firsts) > 1:
         add("+".join(dict.fromkeys(o[0] for o in firsts)), "combined: " + "; ".join(o[1] for o in firsts),
             [x for o in firsts for x in o[2]], [o[3] for o in firsts])
+    for opts in per_line:
+        for r, d, e, ln in opts:
+            add(r, d, e, [ln])
     # last resort: lag the localized statement
     for ln in (fallback_lines or []):
         st = _stmt_at(tree, ln)
