@@ -216,3 +216,27 @@ def test_glob_picks_up_notebooks_but_not_checkpoints(tmp_path, capsys):
     (ck / "clean-checkpoint.ipynb").write_text(CLEAN_NB)
     files, missing = audit_cli.expand_paths([str(tmp_path / "**" / "*.ipynb")])
     assert [f.name for f in files] == ["clean.ipynb"] and not missing
+
+
+def test_annotate_tests_adds_cell_refs():
+    from notebook import annotate_tests, where
+    lm = {12: (7, 3), 13: (7, 4)}
+    tests = [{"name": "future_perturbation", "evidence": {"localized": {"found": True, "entry": {"line": 12},
+                                                                      "chain": [{"line": 13}], "per_line": []}}},
+             {"name": "static_scan", "evidence": {"findings": [{"line": 13, "rule": "x"}, {"line": 1}]}}]
+    annotate_tests(tests, lm)
+    assert tests[0]["evidence"]["localized"]["entry"]["where"] == "cell 7, line 3"
+    assert tests[0]["evidence"]["localized"]["chain"][0]["cell"] == 7
+    assert tests[1]["evidence"]["findings"][0]["where"] == "cell 7, line 4"
+    assert "where" not in tests[1]["evidence"]["findings"][1]          # unmapped header line
+    assert where({"line_map": {"5": [2, 1]}}, 5) == "cell 2, line 1"  # JSON round-trip keys
+    assert where({"line_map": {5: (None, 5)}}, 5) == ""               # plain .py without cells
+
+
+def test_escape_dollars_outside_code():
+    from audit.mdsafe import escape_dollars
+    s = "cost $0.003 vs $0 `${{ secrets.X }}`\n```\n$ python a.py\n```\nalready \\$1"
+    out = escape_dollars(s)
+    assert "cost \\$0.003 vs \\$0" in out
+    assert "`${{ secrets.X }}`" in out and "\n$ python a.py\n" in out
+    assert "already \\$1" in out and "\\\\$" not in out

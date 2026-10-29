@@ -28,7 +28,7 @@ import json
 import re
 from dataclasses import dataclass
 
-__all__ = ["extract_strategy", "locate", "CONTRACT"]
+__all__ = ["extract_strategy", "locate", "where", "annotate_tests", "CONTRACT"]
 
 ENTRY = "generate_signals"
 CONTRACT = (
@@ -371,3 +371,35 @@ def locate(result: dict, line: int) -> tuple[int | None, int] | None:
     m = result.get("line_map") or {}
     v = m.get(line, m.get(str(line)))
     return tuple(v) if v is not None else None
+
+
+def where(result_or_map: dict, line: int) -> str:
+    """'cell N, line M' for a line of the extracted module, '' when unmapped (or a plain .py without cells)."""
+    m = result_or_map.get("line_map", result_or_map) if isinstance(result_or_map, dict) else {}
+    v = (m or {}).get(int(line or 0), (m or {}).get(str(int(line or 0))))
+    return f"cell {v[0]}, line {v[1]}" if v and v[0] is not None else ""
+
+
+def annotate_tests(tests: list[dict], line_map: dict) -> list[dict]:
+    """Add ``cell`` / ``cell_line`` / ``where`` to the line references in audit test dicts (in place).
+
+    Covers the dynamic localizer's entry (future_perturbation evidence), its trace rows, and the static scan
+    findings, so the UI and the downloadable report can say "cell 7, line 3" for an uploaded notebook.
+    Line numbers themselves stay lines of the extracted module."""
+    lm = {"line_map": line_map or {}}
+
+    def tag(d: dict | None):
+        if isinstance(d, dict) and d.get("line"):
+            w = where(lm, d["line"])
+            if w:
+                c = locate(lm, int(d["line"]))
+                d["cell"], d["cell_line"], d["where"] = c[0], c[1], w
+    for t in tests or []:
+        ev = t.get("evidence") or {}
+        lz = ev.get("localized") or {}
+        tag(lz.get("entry"))
+        for row in (lz.get("chain") or []) + (lz.get("per_line") or []):
+            tag(row)
+        for f in ev.get("findings") or []:
+            tag(f)
+    return tests

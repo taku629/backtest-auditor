@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from audit.mdsafe import escape_dollars
+
 RESULTS_JSON = Path(__file__).resolve().parent / "results.json"
 SHORT = {"deterministic": "Deterministic audit"}
 
@@ -116,7 +118,7 @@ def render_leakbench(st, path: str | Path | None = None) -> None:
     with st.expander("Per-strategy verdicts", expanded=False):
         st.dataframe(strategy_frame(res), width="stretch", hide_index=True)
     if res.get("llm_cost_usd") is not None:
-        st.caption(f"LLM judge cost: ${res['llm_cost_usd']:.3f} for {len(methods) - 1} model(s) × "
-                   f"{res['n_strategies']} strategies. Deterministic audit: $0, about 1 s per strategy.")
+        st.caption(f"LLM judge cost: \\${res['llm_cost_usd']:.3f} for {len(methods) - 1} model(s) × "
+                   f"{res['n_strategies']} strategies. Deterministic audit: \\$0, about 1 s per strategy.")
     for n in res.get("notes", [])[:2]:
-        st.caption("• " + n)
+        st.caption("• " + escape_dollars(n))

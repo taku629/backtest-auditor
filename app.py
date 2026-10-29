@@ -20,6 +20,7 @@ import streamlit as st
 from agents.config import load_config, use_mock
 from agents.llm import make_llm
 from agents.loop import RunTrace, run_audit_loop
+from audit.mdsafe import escape_dollars
 from data import generate_panel, listing_table, load_long_csv
 from engine import run_backtest
 
@@ -108,6 +109,11 @@ ADAPTER_EXAMPLES = [
 ]
 
 
+MOCK_CODER = "mock replay (scripted Nemotron-style draft)"
+MOCK_AUDITOR = "mock replay (rule-based auditor)"
+MOCK_SUMMARIZER = "mock replay (template summary)"
+
+
 def short_model(m: str) -> str:
     return m.split("/")[-1]
 
@@ -122,7 +128,7 @@ def pill(t: dict) -> str:
     return f'<span class="pill {cls}" title="{html.escape(t["summary"])}">{mark} {t["name"]}</span>'
 
 
-def flagged_code_html(code: str, tests: list[dict]) -> str | None:
+def flagged_code_html(code: str, tests: list[dict], nb_map: dict | None = None) -> str | None:
     """Source with the lines the static scan flagged highlighted (None when nothing is flagged)."""
     st_test = next((t for t in tests if t["name"] == "static_scan"), None)
     findings = list((st_test or {}).get("evidence", {}).get("findings", []) if st_test else [])
@@ -143,9 +149,49 @@ def flagged_code_html(code: str, tests: list[dict]) -> str | None:
         if fs:
             worst = min((f.get("severity", "medium") for f in fs), key=lambda x: order.get(x, 9))
             cls = f" flag-{worst}"
-            note = '<span class="flagnote">◀ ' + html.escape("; ".join(f"{f.get('rule')} ({f.get('severity')})" for f in fs)) + "</span>"
+            cell = nb_where(nb_map, i)
+            note = ('<span class="flagnote">◀ ' + html.escape("; ".join(f"{f.get('rule')} ({f.get('severity')})" for f in fs))
+                    + (html.escape(f" · {cell}") if cell else "") + "</span>")
         out.append(f'<div class="codeline{cls}"><span class="ln">{i}</span>{html.escape(line) or " "}{note}</div>')
     return '<div class="codebox">' + "".join(out) + "</div>"
+
+
+def nb_where(nb_map: dict | None, line: int) -> str:
+    """'cell N, line M' for a line of a module extracted from an uploaded notebook ('' otherwise)."""
+    if not nb_map:
+        return ""
+    from notebook import where
+    return where(nb_map, line)
+
+
+def qf_lines(qf: dict, nb_map: dict | None) -> str:
+    lines = qf.get("lines") or []
+    cells = [nb_where(nb_map, ln) for ln in lines]
+    return "line " + ", ".join(f"{ln} ({c})" if c else str(ln) for ln, c in zip(lines, cells))
+
+
+def notebook_context(code: str | None) -> dict | None:
+    """The uploaded notebook's line map when the code being audited is still the extracted module."""
+    m = st.session_state.get("nb_map")
+    if m and code is not None and code.strip() == (m.get("code") or "").strip():
+        return {"filename": m["filename"], "code": code, "line_map": m["line_map"]}
+    return None
+
+
+def annotate_trace(trace: dict, nb_map: dict | None) -> dict:
+    """Attach the notebook map and 'cell N, line M' references to iterations that audit the extracted code."""
+    if not nb_map:
+        return trace
+    from notebook import annotate_tests
+    trace["notebook"] = {"filename": nb_map["filename"], "code": nb_map["code"],
+                         "line_map": {int(k): list(v) for k, v in nb_map["line_map"].items()}}
+    for it in trace.get("iterations", []):
+        if it.get("code") == nb_map["code"]:
+            annotate_tests(it.get("tests") or [], nb_map["line_map"])
+        qf = it.get("quick_fix") or {}
+        if qf.get("lines"):
+            qf["where"] = [nb_where(nb_map, ln) for ln in qf["lines"]]
+    return trace
 
 
 def localized_entry(tests: list[dict]) -> dict | None:
@@ -267,7 +313,7 @@ with st.sidebar:
     use_quick_fix = st.checkbox("⚡ Try Quick fix first (no LLM)", value=True,
                                 help="When a draft fails, first try deterministic patches of the localized leak line "
                                      "(e.g. shift(-1) → shift(1), bfill → ffill, rank() → rank(axis=1)), each re-audited. "
-                                     "If one passes every blocking test without going to cash, no LLM is called ($0).")
+                                     "If one passes every blocking test without going to cash, no LLM is called (\\$0).")
     cost_bps = st.slider("Transaction cost (bps per unit turnover)", 0, 50, 10)
     pacing = st.slider("Demo pacing (mock latency, s)", 0.0, 2.0, 0.6, 0.1, disabled=live)
     st.subheader("Data")
@@ -314,7 +360,8 @@ with tab_bench:
         st.info(f"LeakBench results are not available in this build ({type(exc).__name__}).")
 with tab_ci:
     try:
-        st.markdown(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "ci.md"), encoding="utf-8").read())
+        st.markdown(escape_dollars(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "ci.md"),
+                                        encoding="utf-8").read()))
     except OSError:
         st.info("CI docs are not available in this build.")
 with tab_audit:
@@ -352,6 +399,8 @@ with tab_audit:
             st.session_state["nb_loaded"] = (up_nb.name, up_nb.size)
             if r.get("ok"):
                 st.session_state["user_code"] = r["code"]
+                st.session_state["nb_map"] = ({"filename": up_nb.name, "code": r["code"], "line_map": r["line_map"]}
+                                              if any(v[0] is not None for v in r["line_map"].values()) else None)
                 st.session_state["nb_info"] = (f"Extracted from **{up_nb.name}**: " +
                                                (f"{r['cell_count']} cells, `generate_signals` in cell {r['entry_cell']}; "
                                                 if r.get("is_notebook") else "") +
@@ -364,6 +413,7 @@ with tab_audit:
                 ad = adapt_or_none(src) if not up_nb.name.endswith(".ipynb") else None
                 if ad is not None and ad.adapted:
                     st.session_state["user_code"] = src
+                    st.session_state["nb_map"] = None
                     st.session_state["nb_info"] = f"Loaded **{up_nb.name}**. {ad.caption}"
                     st.rerun()
                 st.error(r.get("error") or "Could not extract generate_signals from this file.")
@@ -384,7 +434,7 @@ with tab_audit:
 
 
 # ----------------------------------------------------------------------------- rendering
-def render_iteration(it: dict, models: dict, expanded: bool):
+def render_iteration(it: dict, models: dict, expanded: bool, mock: bool = False, nb_map: dict | None = None):
     tests = it.get("tests", [])
     blocking = [t for t in tests if t.get("blocking")]
     if it["status"] == "clean":
@@ -397,7 +447,8 @@ def render_iteration(it: dict, models: dict, expanded: bool):
         badge = f'<span class="pill pill-fail">{len(blocking)} blocking failure(s)</span>'
     label = "Draft" if it["index"] == 0 else "Fix"
     author = ("you (pasted)" if it.get("user_code") else
-              "⚡ Quick fix (deterministic, no LLM)" if it.get("source") == "quick_fix" else short_model(models["coder"]))
+              "⚡ Quick fix (deterministic, no LLM)" if it.get("source") == "quick_fix" else
+              MOCK_CODER if mock else short_model(models["coder"]))
     with st.container(border=True):
         st.markdown(f"**Iteration {it['index'] + 1} · {label}** &nbsp; {badge} &nbsp; "
                     f'<span class="subtle">code by</span> <span class="model-tag">{author}</span>',
@@ -413,7 +464,8 @@ def render_iteration(it: dict, models: dict, expanded: bool):
             d.metric("Turnover / yr", f"{m['turnover_annual']:.1f}x")
         if it.get("error"):
             st.error(it["error"])
-        flagged = flagged_code_html(it["code"], tests) if blocking else None
+        nbm = nb_map if (nb_map and it.get("code") == nb_map.get("code")) else None
+        flagged = flagged_code_html(it["code"], tests, nbm) if blocking else None
         with st.expander("Strategy code" + (" · flagged lines highlighted" if flagged else ""), expanded=False):
             if flagged:
                 st.markdown(flagged, unsafe_allow_html=True)
@@ -423,7 +475,9 @@ def render_iteration(it: dict, models: dict, expanded: bool):
             with st.expander("Failing test evidence", expanded=expanded):
                 loc = localized_entry(tests)
                 if loc:
-                    st.markdown(f"🎯 **Leak enters at line {loc['line']}** (found by experiment: the first value that changes "
+                    at = (f"{loc['where']} (line {loc['line']} of the extracted module)" if loc.get("where")
+                          else f"line {loc['line']}")
+                    st.markdown(f"🎯 **Leak enters at {at}** (found by experiment: the first value that changes "
                                 f"when only the future changes): `{loc.get('source_line', '').strip()}`")
                 for t in blocking:
                     st.markdown(f"**{t['name']}** ({t['severity']}): {t['summary']}")
@@ -436,23 +490,24 @@ def render_iteration(it: dict, models: dict, expanded: bool):
                         st.plotly_chart(fig, width="stretch", key=f"lp_{id(it)}_{it['index']}_{np.random.randint(1e9)}")
         qf = it.get("quick_fix") or {}
         if it.get("source") == "quick_fix" and qf:
-            st.markdown(f"⚡ **Quick fix** · `{qf.get('rule')}` on line {', '.join(map(str, qf.get('lines') or []))}: "
-                        f"{qf.get('description')} · $0, no LLM call")
+            st.markdown(f"⚡ **Quick fix** · `{qf.get('rule')}` on {qf_lines(qf, nb_map)}: "
+                        f"{qf.get('description')} · \\$0, no LLM call")
         elif qf.get("status") in ("failed", "no_candidate", "error"):
             st.caption(f"⚡ Quick fix: {qf.get('n_candidates', 0)} deterministic candidate(s), none passed the audit "
                        "without going to cash → handed to the LLM.")
         if it.get("auditor_feedback"):
-            with st.expander(f"Auditor diagnosis · {short_model(models['auditor'])}", expanded=expanded):
-                st.markdown(it["auditor_feedback"])
+            with st.expander(f"Auditor diagnosis · {MOCK_AUDITOR if mock else short_model(models['auditor'])}",
+                             expanded=expanded):
+                st.markdown(escape_dollars(it["auditor_feedback"]))
 
 
-def render_quick_fix(it: dict):
+def render_quick_fix(it: dict, nb_map: dict | None = None):
     """The deterministic repair: diff + before/after Sharpe, no LLM involved."""
     qf = it.get("quick_fix") or {}
     b, a = qf.get("before") or {}, qf.get("after") or {}
     with st.container(border=True):
         st.markdown("### ⚡ Quick fix (no LLM)")
-        st.markdown(f"Rule `{qf.get('rule')}` · line {', '.join(map(str, qf.get('lines') or []))} · "
+        st.markdown(f"Rule `{qf.get('rule')}` · {qf_lines(qf, nb_map)} · "
                     f"{qf.get('description')}. Each candidate patch was re-run through the full deterministic audit; "
                     f"this one passes every blocking test and still trades. "
                     f"Tried {sum(1 for x in qf.get('attempts', []))} of {qf.get('n_candidates', 0)} candidate(s).")
@@ -528,7 +583,7 @@ def render_results(trace: dict, data: dict):
 
     qf_it = next((i for i in its if i.get("source") == "quick_fix"), None)
     if qf_it is not None:
-        render_quick_fix(qf_it)
+        render_quick_fix(qf_it, trace.get("notebook"))
 
     st.subheader("Before vs after the audit")
     st.plotly_chart(equity_chart(trace, data), width="stretch")
@@ -547,12 +602,14 @@ def render_results(trace: dict, data: dict):
     tab_tl, tab_rep, tab_diff, tab_use = st.tabs(["Iteration timeline", "Audit report", "Code diff", "Models & tokens"])
     with tab_tl:
         for it in its:
-            render_iteration(it, trace["models"], expanded=False)
+            render_iteration(it, trace["models"], expanded=False, mock=bool(trace.get("mock")),
+                             nb_map=trace.get("notebook"))
     with tab_rep:
         if trace.get("summary"):
-            st.markdown(f"**Executive summary** · <span class='model-tag'>{short_model(trace['models']['summarizer'])}</span>",
+            summ_by = MOCK_SUMMARIZER if trace.get("mock") else short_model(trace["models"]["summarizer"])
+            st.markdown(f"**Executive summary** · <span class='model-tag'>{summ_by}</span>",
                         unsafe_allow_html=True)
-            st.markdown(trace["summary"])
+            st.markdown(escape_dollars(trace["summary"]))
         final = scored[-1] if scored else None
         if final:
             st.markdown(f"**Deterministic tests on iteration {final['index'] + 1}**")
@@ -620,16 +677,18 @@ with tab_audit:
         status = st.status("Coder is drafting the strategy…", expanded=True)
         live_box = st.empty()
         state: dict = {"iterations": []}
+        nb_ctx = notebook_context(user_code) if user_code else None
 
         def redraw():
             with live_box.container():
                 for it in state["iterations"]:
-                    render_iteration(it, {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")}, expanded=True)
+                    render_iteration(it, {r: cfg.route(r).model for r in ("coder", "auditor", "summarizer")},
+                                     expanded=True, mock=not live, nb_map=nb_ctx)
 
         def on_event(e):
             t = e["type"]
             if t == "coder_start":
-                status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({short_model(e['model'])}) is writing code…")
+                status.update(label=f"Iteration {e['iteration'] + 1}: Coder ({'mock replay' if not live else short_model(e['model'])}) is writing code…")
             elif t == "quickfix_start":
                 status.update(label=f"Iteration {e['iteration'] + 1}: ⚡ trying deterministic Quick fix (no LLM)…")
             elif t == "quickfix_done":
@@ -645,14 +704,17 @@ with tab_audit:
             elif t == "tests_done":
                 it = state["iterations"][-1]
                 it.update(status="clean" if e["clean"] else "failing", tests=e["tests"], metrics=e["metrics"])
+                if nb_ctx and it.get("code") == nb_ctx["code"]:
+                    from notebook import annotate_tests
+                    annotate_tests(it["tests"], nb_ctx["line_map"])
             elif t == "error":
                 state["iterations"][-1].update(status="error", error=e["error"])
             elif t == "auditor_start":
-                status.update(label=f"Iteration {e['iteration'] + 1}: Auditor ({short_model(e['model'])}) is diagnosing…")
+                status.update(label=f"Iteration {e['iteration'] + 1}: Auditor ({'mock replay' if not live else short_model(e['model'])}) is diagnosing…")
             elif t == "auditor_done":
                 state["iterations"][-1]["auditor_feedback"] = e["feedback"]
             elif t == "summary_start":
-                status.update(label=f"Summarizer ({short_model(e['model'])}) is writing the report…")
+                status.update(label=f"Summarizer ({'mock replay' if not live else short_model(e['model'])}) is writing the report…")
             redraw()
 
         try:
@@ -661,7 +723,7 @@ with tab_audit:
                                              quick_fix=use_quick_fix)
             status.update(label=f"Done: {trace.final_status.replace('_', ' ')}",
                           state="complete" if trace.final_status == "clean" else "error", expanded=False)
-            st.session_state["trace"] = trace.to_dict()
+            st.session_state["trace"] = annotate_trace(trace.to_dict(), nb_ctx)
         except Exception as exc:  # surface API/config errors in the UI
             status.update(label="Run failed", state="error")
             st.exception(exc)

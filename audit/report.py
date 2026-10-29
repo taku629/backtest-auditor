@@ -76,7 +76,8 @@ def evidence_lines(t: dict) -> list[str]:
         out.append(f"Sharpe t+1 {ev.get('sharpe_lag1')} vs t+2 {ev.get('sharpe_lag2')} (drop {_f(ev.get('relative_drop'), '{:.0%}')})")
     elif n == "static_scan":
         for f in (ev.get("findings") or [])[:8]:
-            out.append(f"line {f.get('line')}: {f.get('rule')} ({f.get('severity')}) `{str(f.get('snippet', '')).strip()}`")
+            at = f"line {f.get('line')}" + (f" ({f['where']})" if f.get("where") else "")
+            out.append(f"{at}: {f.get('rule')} ({f.get('severity')}) `{str(f.get('snippet', '')).strip()}`")
     elif n == "deflated_sharpe":
         out.append(f"DSR {_f(ev.get('dsr'))} (threshold {ev.get('threshold')}), PSR {_f(ev.get('psr'))}, "
                    f"{ev.get('n_trials')} trial(s), {ev.get('n_obs')} days")
@@ -108,13 +109,20 @@ def _localized(tests: list[dict]) -> dict | None:
     return None
 
 
+def _qf_lines(q: dict) -> str:
+    """'line 12 (cell 3, line 4)' when the Quick fix result carries notebook cell references."""
+    lines, wh = q.get("lines") or [], q.get("where") or []
+    return "line " + ", ".join(f"{ln} ({w})" if w else str(ln) for ln, w in zip(lines, list(wh) + [""] * len(lines)))
+
+
 def _flag_lines(tests: list[dict]) -> dict[int, str]:
     out: dict[int, str] = {}
     for t in tests or []:
         if t.get("name") == "static_scan":
             for f in (t.get("evidence") or {}).get("findings") or []:
                 ln = int(f.get("line") or 0)
-                out[ln] = (out.get(ln, "") + ("; " if ln in out else "") + f"{f.get('rule')} ({f.get('severity')})")
+                note = f"{f.get('rule')} ({f.get('severity')})" + (f" · {f['where']}" if f.get("where") else "")
+                out[ln] = (out.get(ln, "") + ("; " if ln in out else "") + note)
     return out
 
 
@@ -146,7 +154,7 @@ def section_from_trace(trace: dict) -> dict:
     if qf_it is not None and (qf_it.get("quick_fix") or {}).get("diff"):
         q = qf_it["quick_fix"]
         fix = {"kind": "Quick fix (deterministic, no LLM, $0)",
-               "description": f"rule `{q.get('rule')}` on line {', '.join(map(str, q.get('lines') or []))}: "
+               "description": f"rule `{q.get('rule')}` on {_qf_lines(q)}: "
                               f"{q.get('description')}",
                "diff": q["diff"]}
         if len(its) >= 2 and its[-1] is not qf_it:
