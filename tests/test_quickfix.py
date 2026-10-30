@@ -286,3 +286,41 @@ def test_mock_demo_momentum_is_repaired_without_llm(panel):
     assert [c["role"] for c in tr.calls] == ["coder", "summarizer"]      # no Auditor, no Coder rewrite
     assert tr.iterations[0].metrics["sharpe"] > 3 * tr.iterations[-1].metrics["sharpe"]
     assert {"quickfix_start", "quickfix_done"} <= {e["type"] for e in events}
+
+
+PRE_LISTING = '''import numpy as np
+import pandas as pd
+
+def generate_signals(data):
+    close = data["close"]
+    z = close.pct_change(20)
+    z_filled = z.fillna(-np.inf)
+    rank = z_filled.rank(axis=1, method="first", ascending=False)
+    top = rank <= 10
+    weights = pd.DataFrame(0.0, index=z.index, columns=z.columns)
+    weights[top] = 1.0 / 10
+    return weights
+'''
+
+
+def test_quick_fix_masks_weight_before_listing(small_panel):
+    """Seen in the in-the-wild study: NaN scores filled with -inf still get ranked, so unlisted names are bought."""
+    from audit.quickfix import generate_candidates, quick_fix
+    cands = generate_candidates(PRE_LISTING, [], mask_unlisted=True)
+    assert cands and cands[0].rule == "mask_unlisted"
+    assert 'weights).where(data["close"].notna(), 0.0)' in cands[0].code
+    assert generate_candidates(PRE_LISTING, []) == []          # off unless the survivorship test asks for it
+    qf = quick_fix(PRE_LISTING, small_panel)
+    assert qf["before"]["blocking"] == ["survivorship"]
+    assert qf["status"] == "fixed" and qf["rule"] == "mask_unlisted", qf["attempts"]
+    assert qf["after"]["clean"]
+
+
+def test_lag_fallback_skips_ticker_indexed_results():
+    """Lagging a corr()/mean() result shifts values between tickers: never offered as a fix."""
+    from audit.quickfix import generate_candidates
+    code = ("def generate_signals(data):\n    r = data['close'].pct_change()\n    corr = r.corr()\n"
+            "    m = r.mean()\n    s = r.mean(axis=1)\n    return r * 0 + corr.iloc[0, 1] + m.iloc[0]\n")
+    assert generate_candidates(code, [], fallback_lines=[3]) == []
+    assert generate_candidates(code, [], fallback_lines=[4]) == []
+    assert [c.rule for c in generate_candidates(code, [], fallback_lines=[5])] == ["lag_statement"]

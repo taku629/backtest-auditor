@@ -1,6 +1,6 @@
 # Quick fix: deterministic, LLM-free repair on LeakBench
 
-Generated 2026-10-29 16:06 UTC · no LLM calls · data: synthetic panel 50 tickers × 1512 days · reproduce with `python -m bench.run_quickfix` (offline, $0).
+Generated 2026-10-30 02:04 UTC · no LLM calls · data: synthetic panel 50 tickers × 1512 days · reproduce with `python -m bench.run_quickfix` (offline, $0).
 
 After the audit fails, `audit/quickfix.py` takes the line the dynamic localizer pinned (plus the lines the static scan flags), generates candidate patches from a fixed list of general pandas rewrite rules (negative shift → positive, centred → trailing window, bfill → ffill, rank → rank(axis=1) or expanding rank, full-sample statistic → expanding, start-labelled resample → end-labelled, transform('last') → 'first', drop a time reversal, pooled quantile → per date, dropna(axis=1) → keep all tickers, a universe chosen from end-of-sample statistics (`iloc[-1]`, `iloc[-k:]`/`tail(k)` reductions, full-sample `count()`) → the same statistic as known on each date with its `nlargest`/`.loc[:, mask]`/`isin` consumers turned into date-wise masks, `np.polyfit(x, y, 1)` over the whole series → expanding least squares, and a last-resort `.shift(1)` of the localized value), and re-runs the full deterministic audit on each. **Fixed** = the first candidate that passes every blocking test *and* is not over-corrected (`non_trivial` passes and mean gross exposure ≥ 5%, the repair benchmark's rule).
 
@@ -8,7 +8,7 @@ After the audit fails, `audit/quickfix.py` takes the line the dynamic localizer 
 
 | Method | Repaired (leaky) | Changes on clean code | Cost per repair | Time per strategy (incl. audits) |
 |---|---|---|---|---|
-| **Quick fix (deterministic, no LLM)** | **24/24 strategies (100%)** | 0/15 | **$0** | 3 s median (max 12 s) |
+| **Quick fix (deterministic, no LLM)** | **24/24 strategies (100%)** | 0/15 | **$0** | 3 s median (max 14 s) |
 | LLM loop (Nemotron Super + Ultra, `bench/REPAIR.md`, condition A) | 69/72 runs (96%) | not measured | $0.0072 | 19 s median per run (max 222 s) |
 
 Deterministic: rerunning gives the same patch (no sampling), so one run per strategy is the whole result, while the LLM numbers are over 3 sampled runs per strategy. Sharpe values below are from this run (pandas 2.3.3); a few leaky drafts score differently from `bench/REPAIR.md`, which was generated in another environment.
@@ -22,8 +22,8 @@ The last five rules to land (L06, L13, L14, L15, L16: point-in-time selection an
 | Strategy | Bug | Result | Rule | Patched line(s) | Localized line | Candidates tried | Sharpe before → after | LLM loop (A) |
 |---|---|---|---|---|---|---|---|---|
 | `L01_shift_minus_one` | negative_shift | ✅ fixed | negative_period | 11 | 11 | 1/3 | 4.12 → 0.60 | 3/3 |
-| `L02_centred_rolling` | centred_window | ✅ fixed | centered_window | 10 | 10 | 1/2 | 8.89 → -0.68 | 3/3 |
-| `L03_bfill_prices` | backward_fill | ✅ fixed | backward_fill | 9 | 9 | 1/2 | 0.98 → 1.03 | 3/3 |
+| `L02_centred_rolling` | centred_window | ✅ fixed | centered_window | 10 | 10 | 1/1 | 8.89 → -0.68 | 3/3 |
+| `L03_bfill_prices` | backward_fill | ✅ fixed | backward_fill | 9 | 9 | 1/5 | 0.98 → 1.03 | 3/3 |
 | `L04_fullsample_zscore` | full_sample_normalisation | ✅ fixed | full_sample_statistic | 11 | 11 | 1/3 | 0.62 → 0.94 | 3/3 |
 | `L05_dropna_universe` | survivor_universe | ✅ fixed | survivor_universe | 9 | 9 | 1/2 | 0.88 → 0.44 | 3/3 |
 | `L06_select_by_final_return` | selection_on_future_performance | ✅ fixed | point_in_time_selection | 10, 11, 14 | 10 | 1/2 | 0.78 → 1.30 | 3/3 |
@@ -31,12 +31,12 @@ The last five rules to land (L06, L13, L14, L15, L16: point-in-time selection an
 | `L08_reverse_cummax` | reversed_cumulative | ✅ fixed | reversed_time_window | 10 | 10 | 1/2 | 1.97 → -0.31 | 3/3 |
 | `L09_weekly_resample_bfill` | resample_backfill | ✅ fixed | backward_fill | 15 | 15 | 1/1 | 5.63 → 0.94 | 3/3 |
 | `L10_reversed_expanding_vol` | reversed_expanding | ✅ fixed | reversed_time_window | 11 | 11 | 1/2 | -0.08 → 0.68 | 3/3 |
-| `L11_groupby_quantile_threshold` | full_sample_quantile_threshold | ✅ fixed | pooled_quantile | 12 | 12 | 1/2 | -0.05 → 0.24 | 3/3 |
+| `L11_groupby_quantile_threshold` | full_sample_quantile_threshold | ✅ fixed | pooled_quantile | 12 | 12 | 1/1 | -0.05 → 0.24 | 3/3 |
 | `L12_helper_hidden_shift` | hidden_negative_shift_in_helper | ✅ fixed | negative_period | 7 | 7 | 1/2 | 7.35 → -0.03 | 3/3 |
 | `L13_alive_at_end` | survivor_universe_last_row | ✅ fixed | point_in_time_selection | 9, 10 | 9 | 1/2 | 1.29 → 1.25 | 3/3 |
 | `L14_polyfit_detrend` | full_sample_regression | ✅ fixed | full_sample_fit | 15 | 15 | 1/1 | 1.26 → -0.54 | 2/3 |
 | `L15_min_history_filter` | survivor_universe_count_filter | ✅ fixed | point_in_time_selection | 10, 12 | 10 | 1/2 | 0.64 → 1.55 | 3/3 |
-| `L16_liquidity_by_recent_volume` | selection_on_future_volume | ✅ fixed | point_in_time_selection | 10, 11, 13 | 10 | 1/2 | -0.37 → -0.79 | 3/3 |
+| `L16_liquidity_by_recent_volume` | selection_on_future_volume | ✅ fixed | point_in_time_selection | 10, 11, 13 | 10 | 1/1 | -0.37 → -0.79 | 3/3 |
 | `L17_rank_default_axis` | pandas_default_axis_rank | ✅ fixed | time_axis_rank | 10 | 10 | 1/3 | -0.02 → 0.72 | 3/3 |
 | `L18_sub_mean_axis_trap` | pandas_default_axis_mean | ✅ fixed | time_axis_demean | 11 | 11 | 1/3 | 0.76 → 1.03 | 3/3 |
 | `L19_resample_ms_last` | resample_label_mismatch | ✅ fixed | resample_start_label | 9 | 9 | 1/3 | 3.86 → 1.07 | 3/3 |

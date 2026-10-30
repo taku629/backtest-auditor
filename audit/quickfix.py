@@ -514,8 +514,23 @@ def _gen_future_bar(tree, stmt, ctx):
         else []
 
 
+# Calls whose result is indexed by ticker (or ticker x ticker), not by date: lagging it with .shift(1) moves values
+# between tickers, which passes no honest test and only hides the leak (found in the in-the-wild study:
+# ``corr = log_ret.corr()`` -> ``corr = log_ret.corr().shift(1)`` "passed" by luck).
+_NOT_TIME_INDEXED = {"corr", "cov", "corrwith", "mean", "std", "var", "sum", "median", "max", "min", "quantile",
+                     "count", "nunique", "idxmax", "idxmin", "first_valid_index", "last_valid_index", "describe"}
+
+
+def _time_indexed(value: ast.AST) -> bool:
+    if _call(value) and value.func.attr in _NOT_TIME_INDEXED:
+        ax = _kw(value, "axis")
+        return _const(ax) in (1, "columns")
+    return True
+
+
 def _gen_lag(tree, stmt, ctx):
-    if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+    if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) \
+            and _time_indexed(stmt.value):
         return [("lag_statement", "lag the localized value by one bar (.shift(1))",
                  [(stmt.value, _lagged(stmt.value))])]
     return []
@@ -788,9 +803,30 @@ GENERATORS = [_gen_negative_period, _gen_centered, _gen_backfill, _gen_reversed,
               _gen_point_in_time, _gen_full_sample_fit]
 
 
+def _mask_unlisted_edits(tree: ast.Module) -> list[tuple[ast.AST, str]]:
+    """``return X`` in generate_signals -> ``return (X).where(<data>["close"].notna(), 0.0)``: no weight on a ticker
+    that has no price on that date (before its listing or after its delisting)."""
+    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "generate_signals"), None)
+    if fn is None or not fn.args.args:
+        return []
+    arg = fn.args.args[0].arg
+    edits = []
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Return) and n.value is not None:
+            if any(isinstance(m, (ast.FunctionDef, ast.Lambda)) and m is not fn and n in ast.walk(m)
+                   for m in ast.walk(fn)):
+                continue   # a return inside a nested helper
+            edits.append((n.value, f'({_src(n.value)}).where({arg}["close"].notna(), 0.0)'))
+    return edits
+
+
 def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int] | None = None,
-                        min_periods: int = 20) -> list[Candidate]:
-    """Candidate patches for the given source lines, best first, de-duplicated, each a full new source."""
+                        min_periods: int = 20, mask_unlisted: bool = False) -> list[Candidate]:
+    """Candidate patches for the given source lines, best first, de-duplicated, each a full new source.
+
+    ``mask_unlisted``: the survivorship test found weight on tickers before they list. Every candidate (and the
+    original) is also tried with its returned weights masked to listed names (appended last, so the order of the
+    line-level candidates is unchanged)."""
     tree = ast.parse(code)
     assigns = _assignments(tree)
     stacked = {k for k, a in assigns.items() if _pooled_panel(a.value, set())}
@@ -836,6 +872,24 @@ def generate_candidates(code: str, lines: list[int], *, fallback_lines: list[int
         if st is not None:
             for r, d, e in _gen_lag(tree, st, ctx):
                 add(r, d, e, [st.lineno])
+    if mask_unlisted:
+        masked = []
+        for base_rule, base_desc, base_code in [("", "", code)] + [(c.rule, c.description, c.code) for c in out]:
+            try:
+                bt = ast.parse(base_code)
+                ed = _mask_unlisted_edits(bt)
+                new = _apply(base_code, ed) if ed else None
+                if new:
+                    ast.parse(new)
+            except Exception:  # noqa: BLE001
+                continue
+            if new and new not in seen:
+                seen.add(new)
+                rule = (base_rule + "+" if base_rule else "") + "mask_unlisted"
+                desc = (base_desc + "; " if base_desc else "") + "mask the returned weights to listed tickers (close.notna())"
+                masked.append(Candidate(rule, desc, new, sorted({n.lineno for n, _ in ed})))
+        # the original-only mask first (smallest change), then each line fix + mask
+        out = out + masked
     return out
 
 
@@ -916,7 +970,16 @@ def quick_fix(code: str, data: dict, *, report=None, seed: int = 7, n_cuts: int 
         return out
     try:
         lines, loc_lines = target_lines(tests, code)
-        cands = generate_candidates(code, lines, fallback_lines=loc_lines)[:max_candidates]
+        sv = next((t for t in tests if t["name"] == "survivorship"), None)
+        pre_listing = bool(sv and not sv["passed"]
+                           and float((sv.get("evidence") or {}).get("weight_before_listing") or 0.0) > 1e-9)
+        cands = generate_candidates(code, lines, fallback_lines=loc_lines, mask_unlisted=pre_listing)
+        if pre_listing and len(cands) > max_candidates:   # keep the masked variants inside the cap
+            masked = [c for c in cands if c.rule.endswith("mask_unlisted")][:max(2, max_candidates // 3)]
+            plain = [c for c in cands if not c.rule.endswith("mask_unlisted")][:max_candidates - len(masked)]
+            cands = plain + masked
+        else:
+            cands = cands[:max_candidates]
     except SyntaxError:
         cands = []
     out["n_candidates"] = len(cands)

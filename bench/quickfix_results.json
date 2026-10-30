@@ -1,6 +1,6 @@
 {
  "benchmark": "quickfix",
- "generated_at": "2026-10-29 16:06 UTC",
+ "generated_at": "2026-10-30 02:04 UTC",
  "data": {
   "n_tickers": 50,
   "n_dates": 1512
@@ -9,6 +9,426 @@
  "llm_calls": 0,
  "cost_usd": 0.0,
  "rows": [
+  {
+   "id": "C01_momentum_12_1",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.1912,
+    "cagr": 0.324,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C02_same_bar_reversal",
+   "label": "clean",
+   "bug": "none (same-bar disguise)",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -1.7946,
+    "cagr": -0.3828,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C03_low_vol",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.629,
+    "cagr": 0.114,
+    "avg_gross": 0.9999
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C04_ma_crossover",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9473,
+    "cagr": 0.2163,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C05_vol_target",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0126,
+    "cagr": 0.1093,
+    "avg_gross": 0.4541
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C06_expanding_zscore",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9768,
+    "cagr": 0.2353,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C07_ffill_rolling",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.6727,
+    "cagr": -0.1778,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C08_cross_sectional_zscore",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.1064,
+    "cagr": 0.0727,
+    "avg_gross": 0.9997
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C09_weekly_resample_ffill",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9392,
+    "cagr": 0.2399,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C10_monthly_first_transform",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7035,
+    "cagr": 0.1326,
+    "avg_gross": 0.9995
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C11_scary_named_helper",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.9319,
+    "cagr": 0.2111,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C12_month_end_calendar_shift",
+   "label": "clean",
+   "bug": "none (calendar look-ahead is legitimate)",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.2588,
+    "cagr": 0.348,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C13_transpose_rank",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 0.7241,
+    "cagr": 0.1611,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.9,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C14_trailing_ic_lagged",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": -0.2567,
+    "cagr": -0.0908,
+    "avg_gross": 0.9998
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.8,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "C15_resample_me_last",
+   "label": "clean",
+   "bug": "none",
+   "holdout": false,
+   "status": "not_needed",
+   "fixed": false,
+   "changed": false,
+   "rule": null,
+   "description": "",
+   "patched_lines": [],
+   "localized_line": null,
+   "n_candidates": 0,
+   "n_tried": 0,
+   "attempts": [],
+   "before": {
+    "clean": true,
+    "blocking": [],
+    "sharpe": 1.0721,
+    "cagr": 0.2648,
+    "avg_gross": 1.0
+   },
+   "after": null,
+   "diff": "",
+   "seconds": 0.7,
+   "quickfix_seconds": 0.0,
+   "cost_usd": 0.0
+  },
   {
    "id": "L01_shift_minus_one",
    "label": "leaky",
@@ -55,8 +475,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L01_shift_minus_one.py\n+++ b/L01_shift_minus_one.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(20)\n     # Align the signal with the bar it will be traded on.\n-    mom = mom.shift(-1)\n+    mom = mom.shift(1)\n     rank = mom.where(listed).rank(axis=1, pct=True)\n     pick = ((rank >= 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 3.4,
-   "quickfix_seconds": 1.25,
+   "seconds": 2.1,
+   "quickfix_seconds": 0.77,
    "cost_usd": 0.0
   },
   {
@@ -73,7 +493,7 @@
     10
    ],
    "localized_line": 10,
-   "n_candidates": 2,
+   "n_candidates": 1,
    "n_tried": 1,
    "attempts": [
     {
@@ -105,8 +525,8 @@
     "avg_gross": 0.9995
    },
    "diff": "--- a/L02_centred_rolling.py\n+++ b/L02_centred_rolling.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Centred window: a smoother, lag-free estimate of fair value.\n-    fair = close.rolling(21, center=True, min_periods=5).mean()\n+    fair = close.rolling(21, min_periods=5).mean()\n     gap = (close / fair - 1).where(listed)\n     rank = gap.rank(axis=1, ascending=True)\n     pick = ((rank <= 8) & listed).astype(float)\n",
-   "seconds": 3.2,
-   "quickfix_seconds": 1.21,
+   "seconds": 2.4,
+   "quickfix_seconds": 0.98,
    "cost_usd": 0.0
   },
   {
@@ -123,7 +543,7 @@
     9
    ],
    "localized_line": 9,
-   "n_candidates": 2,
+   "n_candidates": 5,
    "n_tried": 1,
    "attempts": [
     {
@@ -155,8 +575,8 @@
     "avg_gross": 0.9965
    },
    "diff": "--- a/L03_bfill_prices.py\n+++ b/L03_bfill_prices.py\n@@ -6,7 +6,7 @@\n     \"\"\"60-day momentum, long the top 10, with gap-free prices.\"\"\"\n     close = data[\"close\"]\n     # Fill holes in the price history so the 60-day return is always defined.\n-    px = close.bfill()\n+    px = close.ffill()\n     mom = px / px.shift(60) - 1\n     rank = mom.rank(axis=1, ascending=False)\n     pick = (rank <= 10).astype(float)\n",
-   "seconds": 3.3,
-   "quickfix_seconds": 1.16,
+   "seconds": 2.5,
+   "quickfix_seconds": 1.07,
    "cost_usd": 0.0
   },
   {
@@ -205,7 +625,7 @@
    },
    "diff": "--- a/L04_fullsample_zscore.py\n+++ b/L04_fullsample_zscore.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(40)\n     # Standardise each stock's momentum so every name is on the same scale.\n-    z = (mom - mom.mean()) / mom.std()\n+    z = (mom - mom.expanding(min_periods=20).mean()) / mom.expanding(min_periods=20).std()\n     rank = z.where(listed).rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
    "seconds": 2.7,
-   "quickfix_seconds": 1.02,
+   "quickfix_seconds": 0.99,
    "cost_usd": 0.0
   },
   {
@@ -254,8 +674,8 @@
     "avg_gross": 0.5605
    },
    "diff": "--- a/L05_dropna_universe.py\n+++ b/L05_dropna_universe.py\n@@ -6,7 +6,7 @@\n     \"\"\"Low-volatility: hold the 10 least volatile names (60-day vol), monthly rebalance.\"\"\"\n     close = data[\"close\"]\n     # Work on a clean universe of names with full data.\n-    clean = close.dropna(axis=1)\n+    clean = close\n     vol = clean.pct_change().rolling(60).std()\n     rank = vol.rank(axis=1, ascending=True)\n     pick = (rank <= 10).astype(float)\n",
-   "seconds": 3.6,
-   "quickfix_seconds": 1.27,
+   "seconds": 2.8,
+   "quickfix_seconds": 1.09,
    "cost_usd": 0.0
   },
   {
@@ -304,8 +724,8 @@
     "avg_gross": 0.996
    },
    "diff": "--- a/L06_select_by_final_return.py\n+++ b/L06_select_by_final_return.py\n@@ -7,10 +7,10 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Leaders: strongest names over the past year.\n-    one_year = close.iloc[-1] / close.iloc[-252] - 1\n-    leaders = one_year.nlargest(15).index\n+    one_year = close / close.shift(251) - 1\n+    leaders = one_year.rank(axis=1, ascending=False, method='first') <= 15\n     ma = close.rolling(50).mean()\n     on = (close > ma) & listed\n-    on.loc[:, ~close.columns.isin(leaders)] = False\n+    on = on.where(leaders, False)\n     pick = on.astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 3.0,
-   "quickfix_seconds": 1.14,
+   "seconds": 2.7,
+   "quickfix_seconds": 1.07,
    "cost_usd": 0.0
   },
   {
@@ -353,8 +773,8 @@
     "avg_gross": 0.9647
    },
    "diff": "--- a/L07_time_rank_full_history.py\n+++ b/L07_time_rank_full_history.py\n@@ -8,6 +8,6 @@\n     listed = close.notna()\n     mom = close.pct_change(20)\n     # Percentile of today's momentum within each stock's own history.\n-    pctl = mom.rank(axis=0, pct=True)\n+    pctl = mom.expanding(min_periods=20).rank(pct=True)\n     pick = ((pctl > 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 3.2,
-   "quickfix_seconds": 1.3,
+   "seconds": 2.8,
+   "quickfix_seconds": 1.16,
    "cost_usd": 0.0
   },
   {
@@ -401,8 +821,8 @@
     "avg_gross": 0.9995
    },
    "diff": "--- a/L08_reverse_cummax.py\n+++ b/L08_reverse_cummax.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Running peak of each price series.\n-    peak = close.iloc[::-1].cummax().iloc[::-1]\n+    peak = close.cummax()\n     discount = (close / peak - 1).where(listed)\n     rank = discount.rank(axis=1, ascending=True)\n     pick = ((rank <= 10) & listed).astype(float)\n",
-   "seconds": 3.4,
-   "quickfix_seconds": 1.34,
+   "seconds": 3.1,
+   "quickfix_seconds": 1.12,
    "cost_usd": 0.0
   },
   {
@@ -450,8 +870,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L09_weekly_resample_bfill.py\n+++ b/L09_weekly_resample_bfill.py\n@@ -12,4 +12,4 @@\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     # One portfolio per week, spread over the trading days of that week.\n     weekly = w.resample(\"W-FRI\").last()\n-    return weekly.reindex(close.index, method=\"bfill\").fillna(0.0)\n+    return weekly.reindex(close.index, method='ffill').fillna(0.0)\n",
-   "seconds": 3.6,
-   "quickfix_seconds": 1.35,
+   "seconds": 2.6,
+   "quickfix_seconds": 1.03,
    "cost_usd": 0.0
   },
   {
@@ -499,8 +919,8 @@
     "avg_gross": 0.9999
    },
    "diff": "--- a/L10_reversed_expanding_vol.py\n+++ b/L10_reversed_expanding_vol.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     ret = close.pct_change()\n     # Expanding window is more stable than a short rolling window.\n-    vol = ret.iloc[::-1].expanding(min_periods=60).std().iloc[::-1]\n+    vol = ret.expanding(min_periods=60).std()\n     vol = vol.where(listed)\n     rank = vol.rank(axis=1, ascending=True)\n     inv = (1.0 / vol).where(rank <= 25)\n",
-   "seconds": 2.6,
-   "quickfix_seconds": 0.86,
+   "seconds": 3.0,
+   "quickfix_seconds": 1.03,
    "cost_usd": 0.0
   },
   {
@@ -517,7 +937,7 @@
     12
    ],
    "localized_line": 12,
-   "n_candidates": 2,
+   "n_candidates": 1,
    "n_tried": 1,
    "attempts": [
     {
@@ -548,8 +968,8 @@
     "avg_gross": 0.9647
    },
    "diff": "--- a/L11_groupby_quantile_threshold.py\n+++ b/L11_groupby_quantile_threshold.py\n@@ -9,7 +9,7 @@\n     mom = close.pct_change(20)\n     long = mom.stack()\n     # Each stock's own breakout level.\n-    level = long.groupby(level=1).quantile(0.8)\n+    level = mom.expanding(min_periods=20).quantile(0.8)\n     on = mom.gt(level, axis=1) & listed\n     pick = on.astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.7,
-   "quickfix_seconds": 1.15,
+   "seconds": 3.2,
+   "quickfix_seconds": 1.38,
    "cost_usd": 0.0
   },
   {
@@ -597,8 +1017,8 @@
     "avg_gross": 0.9999
    },
    "diff": "--- a/L12_helper_hidden_shift.py\n+++ b/L12_helper_hidden_shift.py\n@@ -4,7 +4,7 @@\n \n def to_trade_date(df, lag=1):\n     \"\"\"Move each signal to the bar on which it is executed (the engine trades one bar later).\"\"\"\n-    return df.shift(-lag)\n+    return df.shift(lag)\n \n \n def generate_signals(data):\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.91,
+   "seconds": 2.9,
+   "quickfix_seconds": 1.11,
    "cost_usd": 0.0
   },
   {
@@ -647,8 +1067,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L13_alive_at_end.py\n+++ b/L13_alive_at_end.py\n@@ -6,8 +6,8 @@\n     \"\"\"Equal-weight the top third of names by 120-day momentum, among currently tradable stocks.\"\"\"\n     close = data[\"close\"]\n     # Only consider stocks that are currently tradable.\n-    tradable = close.columns[close.iloc[-1].notna()]\n-    px = close[tradable]\n+    tradable = close.notna()\n+    px = close.where(tradable)\n     listed = px.notna()\n     mom = px.pct_change(120).where(listed)\n     rank = mom.rank(axis=1, pct=True)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 1.07,
+   "seconds": 2.8,
+   "quickfix_seconds": 1.1,
    "cost_usd": 0.0
   },
   {
@@ -696,8 +1116,8 @@
     "avg_gross": 0.9996
    },
    "diff": "--- a/L14_polyfit_detrend.py\n+++ b/L14_polyfit_detrend.py\n@@ -12,8 +12,22 @@\n         if len(s) < 60:\n             continue\n         x = np.arange(len(s), dtype=float)\n-        slope, icpt = np.polyfit(x, s.to_numpy(), 1)\n+        slope, icpt = _expanding_polyfit1(x, s.to_numpy())\n         resid.loc[s.index, c] = s.to_numpy() - (icpt + slope * x)\n     rank = resid.where(listed).rank(axis=1, ascending=True)\n     pick = ((rank <= 8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n+\n+\n+def _expanding_polyfit1(x, y):\n+    \"\"\"Backtest Auditor Quick fix: degree-1 least squares fitted on data up to each point (no look-ahead).\n+    Returns (slope, intercept) arrays aligned with x; the first point has no fit (NaN).\"\"\"\n+    import numpy as _np\n+    x = _np.asarray(x, dtype=float)\n+    y = _np.asarray(y, dtype=float)\n+    n = _np.arange(1, len(x) + 1, dtype=float)\n+    mx, my = _np.cumsum(x) / n, _np.cumsum(y) / n\n+    var = _np.cumsum(x * x) / n - mx ** 2\n+    with _np.errstate(divide=\"ignore\", invalid=\"ignore\"):\n+        slope = _np.where(var > 1e-12, (_np.cumsum(x * y) / n - mx * my) / var, _np.nan)\n+    return slope, my - slope * mx\n",
-   "seconds": 3.7,
-   "quickfix_seconds": 1.05,
+   "seconds": 3.6,
+   "quickfix_seconds": 1.28,
    "cost_usd": 0.0
   },
   {
@@ -746,8 +1166,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L15_min_history_filter.py\n+++ b/L15_min_history_filter.py\n@@ -7,9 +7,9 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Seasoned stocks only: require a long trading record.\n-    seasoned = close.count() >= 1200\n+    seasoned = close.expanding().count() >= 1200\n     vol = close.pct_change().rolling(60).std()\n-    vol = vol.loc[:, seasoned].where(listed)\n+    vol = vol.where(seasoned).where(listed)\n     rank = vol.rank(axis=1, ascending=True)\n     pick = (rank <= 10).astype(float)\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.96,
+   "seconds": 2.6,
+   "quickfix_seconds": 0.93,
    "cost_usd": 0.0
   },
   {
@@ -766,7 +1186,7 @@
     13
    ],
    "localized_line": 10,
-   "n_candidates": 2,
+   "n_candidates": 1,
    "n_tried": 1,
    "attempts": [
     {
@@ -796,8 +1216,8 @@
     "avg_gross": 0.999
    },
    "diff": "--- a/L16_liquidity_by_recent_volume.py\n+++ b/L16_liquidity_by_recent_volume.py\n@@ -7,10 +7,10 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     # Trade only the most liquid names to keep costs down.\n-    adv = data[\"volume\"].iloc[-60:].median()\n-    liquid = adv.nlargest(25).index\n+    adv = data['volume'].rolling(60).median()\n+    liquid = adv.rank(axis=1, ascending=False, method='first') <= 25\n     ret = close.pct_change(20).where(listed)\n-    ret.loc[:, ~close.columns.isin(liquid)] = np.nan\n+    ret = ret.where(liquid, np.nan)\n     rank = ret.rank(axis=1, ascending=True)\n     pick = (rank <= 5).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.6,
-   "quickfix_seconds": 1.14,
+   "seconds": 3.1,
+   "quickfix_seconds": 1.34,
    "cost_usd": 0.0
   },
   {
@@ -845,8 +1265,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L17_rank_default_axis.py\n+++ b/L17_rank_default_axis.py\n@@ -7,6 +7,6 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(20).where(listed)\n-    pctl = mom.rank(pct=True)\n+    pctl = mom.rank(axis=1, pct=True)\n     pick = ((pctl >= 0.8) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.3,
-   "quickfix_seconds": 0.84,
+   "seconds": 2.6,
+   "quickfix_seconds": 0.97,
    "cost_usd": 0.0
   },
   {
@@ -894,8 +1314,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L18_sub_mean_axis_trap.py\n+++ b/L18_sub_mean_axis_trap.py\n@@ -8,7 +8,7 @@\n     listed = close.notna()\n     mom = close.pct_change(60).where(listed)\n     # Remove the common component before ranking.\n-    demeaned = mom.sub(mom.mean(), axis=1)\n+    demeaned = mom.sub(mom.mean(axis=1), axis=0)\n     rank = demeaned.rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.2,
-   "quickfix_seconds": 0.81,
+   "seconds": 2.7,
+   "quickfix_seconds": 0.9,
    "cost_usd": 0.0
   },
   {
@@ -942,8 +1362,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L19_resample_ms_last.py\n+++ b/L19_resample_ms_last.py\n@@ -6,7 +6,7 @@\n     \"\"\"Monthly 3-month momentum: long the top 10 names, rebalanced monthly.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    monthly = close.resample(\"MS\").last()\n+    monthly = close.resample('ME').last()\n     mom = monthly / monthly.shift(3) - 1\n     rank = mom.rank(axis=1, ascending=False)\n     pick = (rank <= 10).astype(float)\n",
-   "seconds": 2.4,
-   "quickfix_seconds": 0.97,
+   "seconds": 3.1,
+   "quickfix_seconds": 1.0,
    "cost_usd": 0.0
   },
   {
@@ -990,8 +1410,8 @@
     "avg_gross": 0.9995
    },
    "diff": "--- a/L20_groupby_transform_last.py\n+++ b/L20_groupby_transform_last.py\n@@ -12,5 +12,5 @@\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     month = close.index.to_period(\"M\")\n     # Hold a single portfolio for the whole month.\n-    w = w.groupby(month).transform(\"last\")\n+    w = w.groupby(month).transform('first')\n     return w.where(listed, 0.0)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.89,
+   "seconds": 2.4,
+   "quickfix_seconds": 0.82,
    "cost_usd": 0.0
   },
   {
@@ -1050,8 +1470,8 @@
     "avg_gross": 0.9998
    },
    "diff": "--- a/L21_trailing_ic_forward_return.py\n+++ b/L21_trailing_ic_forward_return.py\n@@ -9,7 +9,7 @@\n     ret = close.pct_change()\n     sig = -close.pct_change(5)\n     fwd = ret.shift(-1)                       # the return each signal is meant to predict\n-    ic = sig.rolling(120, min_periods=60).corr(fwd)   # trailing 120-day information coefficient\n+    ic = sig.rolling(120, min_periods=60).corr(fwd).shift(1)   # trailing 120-day information coefficient\n     score = sig.where((ic > 0) & listed)\n     rank = score.rank(axis=1, ascending=False)\n     pick = ((rank <= 8) & listed).astype(float)\n",
-   "seconds": 3.8,
-   "quickfix_seconds": 2.07,
+   "seconds": 4.1,
+   "quickfix_seconds": 2.27,
    "cost_usd": 0.0
   },
   {
@@ -1099,8 +1519,8 @@
     "avg_gross": 0.9995
    },
    "diff": "--- a/L22_descending_sort_rolling.py\n+++ b/L22_descending_sort_rolling.py\n@@ -6,7 +6,7 @@\n     \"\"\"Buy the 8 names furthest below their 20-day moving average.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    recent_first = close.sort_index(ascending=False)\n+    recent_first = close\n     ma = recent_first.rolling(20, min_periods=20).mean().sort_index()\n     gap = (close / ma - 1).where(listed)\n     rank = gap.rank(axis=1, ascending=True)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.88,
+   "seconds": 4.3,
+   "quickfix_seconds": 1.5,
    "cost_usd": 0.0
   },
   {
@@ -1147,8 +1567,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L23_fillna_full_mean.py\n+++ b/L23_fillna_full_mean.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(60)\n-    mom = mom.fillna(mom.mean()).where(listed)\n+    mom = mom.fillna(mom.expanding(min_periods=20).mean()).where(listed)\n     rank = mom.rank(axis=1, ascending=False)\n     pick = ((rank <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.6,
-   "quickfix_seconds": 0.93,
+   "seconds": 3.1,
+   "quickfix_seconds": 1.1,
    "cost_usd": 0.0
   },
   {
@@ -1196,428 +1616,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/L24_pooled_qcut.py\n+++ b/L24_pooled_qcut.py\n@@ -8,6 +8,6 @@\n     listed = close.notna()\n     mom = close.pct_change(20).where(listed)\n     long = mom.stack()\n-    bucket = pd.qcut(long, 5, labels=False).unstack().reindex(index=close.index, columns=close.columns)\n+    bucket = long.groupby(level=0).transform(lambda _s: pd.qcut(_s, 5, labels=False)).unstack().reindex(index=close.index, columns=close.columns)\n     pick = ((bucket == 4) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 12.0,
-   "quickfix_seconds": 9.71,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C01_momentum_12_1",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 1.1912,
-    "cagr": 0.324,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.2,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C02_same_bar_reversal",
-   "label": "clean",
-   "bug": "none (same-bar disguise)",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": -1.7946,
-    "cagr": -0.3828,
-    "avg_gross": 0.9995
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.0,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C03_low_vol",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.629,
-    "cagr": 0.114,
-    "avg_gross": 0.9999
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.0,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C04_ma_crossover",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.9473,
-    "cagr": 0.2163,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C05_vol_target",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 1.0126,
-    "cagr": 0.1093,
-    "avg_gross": 0.4541
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.0,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C06_expanding_zscore",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.9768,
-    "cagr": 0.2353,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C07_ffill_rolling",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": -0.6727,
-    "cagr": -0.1778,
-    "avg_gross": 0.9995
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C08_cross_sectional_zscore",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 1.1064,
-    "cagr": 0.0727,
-    "avg_gross": 0.9997
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C09_weekly_resample_ffill",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.9392,
-    "cagr": 0.2399,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.1,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C10_monthly_first_transform",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.7035,
-    "cagr": 0.1326,
-    "avg_gross": 0.9995
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.0,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C11_scary_named_helper",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.9319,
-    "cagr": 0.2111,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C12_month_end_calendar_shift",
-   "label": "clean",
-   "bug": "none (calendar look-ahead is legitimate)",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 1.2588,
-    "cagr": 0.348,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.8,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C13_transpose_rank",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 0.7241,
-    "cagr": 0.1611,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C14_trailing_ic_lagged",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": -0.2567,
-    "cagr": -0.0908,
-    "avg_gross": 0.9998
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 1.1,
-   "quickfix_seconds": 0.0,
-   "cost_usd": 0.0
-  },
-  {
-   "id": "C15_resample_me_last",
-   "label": "clean",
-   "bug": "none",
-   "holdout": false,
-   "status": "not_needed",
-   "fixed": false,
-   "changed": false,
-   "rule": null,
-   "description": "",
-   "patched_lines": [],
-   "localized_line": null,
-   "n_candidates": 0,
-   "n_tried": 0,
-   "attempts": [],
-   "before": {
-    "clean": true,
-    "blocking": [],
-    "sharpe": 1.0721,
-    "cagr": 0.2648,
-    "avg_gross": 1.0
-   },
-   "after": null,
-   "diff": "",
-   "seconds": 0.9,
-   "quickfix_seconds": 0.0,
+   "seconds": 14.0,
+   "quickfix_seconds": 12.22,
    "cost_usd": 0.0
   },
   {
@@ -1666,8 +1666,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H01_shift_keyword.py\n+++ b/H01_shift_keyword.py\n@@ -6,7 +6,7 @@\n     \"\"\"10-day momentum, long the top 12 names.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    sig = close.pct_change(periods=10).shift(periods=-2)\n+    sig = close.pct_change(periods=10).shift(periods=2)\n     order = sig.where(listed).rank(axis=1, ascending=False)\n     pick = ((order <= 12) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.8,
-   "quickfix_seconds": 1.23,
+   "seconds": 2.9,
+   "quickfix_seconds": 1.16,
    "cost_usd": 0.0
   },
   {
@@ -1714,8 +1714,8 @@
     "avg_gross": 0.9872
    },
    "diff": "--- a/H02_interpolate.py\n+++ b/H02_interpolate.py\n@@ -5,7 +5,7 @@\n def generate_signals(data):\n     \"\"\"40-day momentum on gap-free prices, top 10.\"\"\"\n     close = data[\"close\"]\n-    smooth = close.interpolate()\n+    smooth = close.ffill()\n     mom = smooth.pct_change(40)\n     order = mom.rank(axis=1, ascending=False)\n     pick = (order <= 10).astype(float)\n",
-   "seconds": 2.6,
-   "quickfix_seconds": 0.87,
+   "seconds": 3.6,
+   "quickfix_seconds": 1.1,
    "cost_usd": 0.0
   },
   {
@@ -1763,8 +1763,8 @@
     "avg_gross": 0.9999
    },
    "diff": "--- a/H03_reversed_ewm.py\n+++ b/H03_reversed_ewm.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     ret = close.pct_change()\n-    vol = ret[::-1].ewm(span=30, min_periods=30).std()[::-1].where(listed)\n+    vol = ret.ewm(span=30, min_periods=30).std().where(listed)\n     calm = vol.rank(axis=1) <= 20\n     inv = (1.0 / vol).where(calm)\n     return inv.div(inv.sum(axis=1), axis=0).fillna(0.0)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.88,
+   "seconds": 3.0,
+   "quickfix_seconds": 1.02,
    "cost_usd": 0.0
   },
   {
@@ -1812,8 +1812,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H04_minus_median.py\n+++ b/H04_minus_median.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     mom = close.pct_change(30)\n-    excess = mom - mom.median()\n+    excess = mom - mom.expanding(min_periods=20).median()\n     order = excess.where(listed).rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 3.0,
-   "quickfix_seconds": 1.29,
+   "seconds": 2.9,
+   "quickfix_seconds": 1.32,
    "cost_usd": 0.0
   },
   {
@@ -1861,7 +1861,7 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H05_resample_qs_max.py\n+++ b/H05_resample_qs_max.py\n@@ -6,7 +6,7 @@\n     \"\"\"Buy the 10 names closest to their quarterly high.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    qhigh = close.resample(\"QS\").max().reindex(close.index, method=\"ffill\")\n+    qhigh = close.resample('QE').max().reindex(close.index, method=\"ffill\")\n     near = (close / qhigh).where(listed)\n     order = near.rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n",
-   "seconds": 2.4,
+   "seconds": 2.5,
    "quickfix_seconds": 0.8,
    "cost_usd": 0.0
   },
@@ -1879,7 +1879,7 @@
     9
    ],
    "localized_line": 9,
-   "n_candidates": 2,
+   "n_candidates": 1,
    "n_tried": 1,
    "attempts": [
     {
@@ -1911,8 +1911,8 @@
     "avg_gross": 0.9998
    },
    "diff": "--- a/H06_centred_keyword.py\n+++ b/H06_centred_keyword.py\n@@ -6,7 +6,7 @@\n     \"\"\"Low volatility, 12 names.\"\"\"\n     close = data[\"close\"]\n     listed = close.notna()\n-    vol = close.pct_change().rolling(window=30, center=True, min_periods=10).std()\n+    vol = close.pct_change().rolling(window=30, min_periods=10).std()\n     order = vol.where(listed).rank(axis=1)\n     pick = ((order <= 12) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.4,
-   "quickfix_seconds": 0.85,
+   "seconds": 2.7,
+   "quickfix_seconds": 1.06,
    "cost_usd": 0.0
   },
   {
@@ -1959,8 +1959,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H07_rank_no_axis.py\n+++ b/H07_rank_no_axis.py\n@@ -7,6 +7,6 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     score = close.pct_change(60).where(listed)\n-    order = score.rank(ascending=False)\n+    order = score.rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n",
-   "seconds": 2.7,
-   "quickfix_seconds": 1.03,
+   "seconds": 2.4,
+   "quickfix_seconds": 1.06,
    "cost_usd": 0.0
   },
   {
@@ -2008,8 +2008,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H08_forward_hit_rate.py\n+++ b/H08_forward_hit_rate.py\n@@ -7,7 +7,7 @@\n     close = data[\"close\"]\n     listed = close.notna()\n     sig = -close.pct_change(5)\n-    fwd5 = close.pct_change(5).shift(-5)\n+    fwd5 = close.pct_change(5).shift(5)\n     hit = (np.sign(sig) * fwd5).rolling(60, min_periods=40).mean()\n     order = sig.where((hit > 0) & listed).rank(axis=1, ascending=False)\n     pick = ((order <= 10) & listed).astype(float)\n",
-   "seconds": 2.7,
-   "quickfix_seconds": 1.07,
+   "seconds": 2.4,
+   "quickfix_seconds": 0.77,
    "cost_usd": 0.0
   },
   {
@@ -2058,8 +2058,8 @@
     "avg_gross": 0.9768
    },
    "diff": "--- a/H09_dropna_columns.py\n+++ b/H09_dropna_columns.py\n@@ -5,7 +5,7 @@\n def generate_signals(data):\n     \"\"\"20-day momentum among names with complete data, top 10.\"\"\"\n     close = data[\"close\"]\n-    universe = close.dropna(axis=\"columns\")\n+    universe = close\n     mom = universe.pct_change(20)\n     order = mom.rank(axis=1, ascending=False)\n     pick = (order <= 10).astype(float)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.84,
+   "seconds": 2.4,
+   "quickfix_seconds": 0.94,
    "cost_usd": 0.0
   },
   {
@@ -2109,7 +2109,7 @@
    },
    "diff": "--- a/H10_weekly_transform_max.py\n+++ b/H10_weekly_transform_max.py\n@@ -10,6 +10,6 @@\n     pick = (mom.rank(axis=1, pct=True) >= 0.8).astype(float)\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     week = close.index.to_period(\"W\")\n-    w = w.groupby(week).transform(\"max\")\n+    w = w.groupby(week).transform('first')\n     w = w.div(w.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n     return w.where(listed, 0.0)\n",
    "seconds": 2.6,
-   "quickfix_seconds": 0.96,
+   "quickfix_seconds": 0.99,
    "cost_usd": 0.0
   },
   {
@@ -2158,7 +2158,7 @@
     "avg_gross": 0.9986
    },
    "diff": "--- a/H11_best_sharpe_tail.py\n+++ b/H11_best_sharpe_tail.py\n@@ -6,10 +6,10 @@\n     \"\"\"Short-term reversal inside the 12 highest-quality names.\"\"\"\n     close = data[\"close\"]\n     ret = close.pct_change()\n-    quality = ret.tail(252).mean() / ret.tail(252).std()\n-    best = quality.nlargest(12).index\n+    quality = ret.rolling(252).mean() / ret.rolling(252).std()\n+    best = quality.rank(axis=1, ascending=False, method='first') <= 12\n     rev = -close.pct_change(5)\n-    sub = rev[best]\n+    sub = rev.where(best)\n     order = sub.rank(axis=1, ascending=False)\n     pick = (order <= 4).astype(float)\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0)\n",
-   "seconds": 2.5,
+   "seconds": 2.3,
    "quickfix_seconds": 1.04,
    "cost_usd": 0.0
   },
@@ -2208,8 +2208,8 @@
     "avg_gross": 1.0
    },
    "diff": "--- a/H12_alive_mask_loc.py\n+++ b/H12_alive_mask_loc.py\n@@ -5,9 +5,9 @@\n def generate_signals(data):\n     \"\"\"60-day momentum, top 8, among names still trading.\"\"\"\n     close = data[\"close\"]\n-    alive = close.iloc[-1].notna()\n+    alive = close.notna()\n     mom = close.pct_change(60)\n-    mom = mom.loc[:, alive]\n+    mom = mom.where(alive)\n     order = mom.rank(axis=1, ascending=False)\n     pick = (order <= 8).astype(float)\n     w = pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0)\n",
-   "seconds": 2.5,
-   "quickfix_seconds": 0.91,
+   "seconds": 2.0,
+   "quickfix_seconds": 0.77,
    "cost_usd": 0.0
   },
   {
@@ -2257,8 +2257,8 @@
     "avg_gross": 0.9994
    },
    "diff": "--- a/H13_polyval_trend.py\n+++ b/H13_polyval_trend.py\n@@ -11,8 +11,22 @@\n         if len(lp) < 100:\n             continue\n         t = np.arange(len(lp), dtype=float)\n-        coef = np.polyfit(t, lp.values, deg=1)\n+        coef = _expanding_polyfit1(t, lp.values)\n         gap.loc[lp.index, name] = lp.values - np.polyval(coef, t)\n     order = gap.rank(axis=1, ascending=True)\n     pick = (order <= 6).astype(float)\n     return pick.div(pick.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)\n+\n+\n+def _expanding_polyfit1(x, y):\n+    \"\"\"Backtest Auditor Quick fix: degree-1 least squares fitted on data up to each point (no look-ahead).\n+    Returns (slope, intercept) arrays aligned with x; the first point has no fit (NaN).\"\"\"\n+    import numpy as _np\n+    x = _np.asarray(x, dtype=float)\n+    y = _np.asarray(y, dtype=float)\n+    n = _np.arange(1, len(x) + 1, dtype=float)\n+    mx, my = _np.cumsum(x) / n, _np.cumsum(y) / n\n+    var = _np.cumsum(x * x) / n - mx ** 2\n+    with _np.errstate(divide=\"ignore\", invalid=\"ignore\"):\n+        slope = _np.where(var > 1e-12, (_np.cumsum(x * y) / n - mx * my) / var, _np.nan)\n+    return slope, my - slope * mx\n",
-   "seconds": 3.7,
-   "quickfix_seconds": 1.17,
+   "seconds": 2.6,
+   "quickfix_seconds": 0.81,
    "cost_usd": 0.0
   },
   {
@@ -2313,7 +2313,7 @@
    },
    "after": null,
    "diff": "",
-   "seconds": 0.9,
+   "seconds": 0.7,
    "quickfix_seconds": 0.0,
    "cost_usd": 0.0
   },
@@ -2341,7 +2341,7 @@
    },
    "after": null,
    "diff": "",
-   "seconds": 1.1,
+   "seconds": 1.0,
    "quickfix_seconds": 0.0,
    "cost_usd": 0.0
   }
