@@ -351,13 +351,19 @@ st.markdown("""<div class="steps">
 </div>""", unsafe_allow_html=True)
 
 DATA_FOR_CHARTS = data
-tab_audit, tab_bench, tab_ci = st.tabs(["🧪 Audit a strategy", "📊 LeakBench: tests vs LLM judges", "⚙️ Use it in CI"])
+tab_audit, tab_bench, tab_ci = st.tabs(["🧪 Audit a strategy", "📊 LeakBench & in the wild", "⚙️ Use it in CI"])
 with tab_bench:
     try:
         from bench.ui import render_leakbench
         render_leakbench(st)
     except Exception as exc:  # bench results not generated yet
         st.info(f"LeakBench results are not available in this build ({type(exc).__name__}).")
+    try:
+        from bench.ui import render_wild
+        st.divider()
+        render_wild(st)   # cached bench/wild_public.json only; no live calls
+    except Exception as exc:
+        st.info(f"In-the-wild results are not available in this build ({type(exc).__name__}).")
 with tab_ci:
     try:
         st.markdown(escape_dollars(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "ci.md"),

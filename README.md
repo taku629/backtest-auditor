@@ -12,6 +12,16 @@ The LLM never judges correctness on its own. Numbers do.
 
 > Built for the Nebius x NVIDIA Global AI Hackathon, *Coding & Agentic Engineering* track.
 
+**Headline result: AI-written backtests leak even when nobody asks them to.** We gave Nemotron 3 Super and
+Nemotron 3.5 Lightning 30 ordinary strategy requests (momentum, mean reversion, pairs, vol targeting, ML signals,
+rotation…), 120 first drafts in all. **25 of the 95 drafts that ran (26%) had a blocking bug**: 20 read the future
+(full-sample z-scores, a pair or parameter set chosen with hindsight, `rank()` on the time axis, `series[i + 1]`),
+the rest held stocks before they listed or picked a survivor universe. Only one looked too good to be true
+(median Sharpe of the leaky drafts 0.23), so the equity curve would not have given them away. The deterministic audit
+flagged all 25 (our manual review found no false alarm), and Quick fix plus the Nemotron loop repaired 22.
+Caveats: our own prompts, one sample each; leaks were 51% of drafts when the request mentioned a notebook habit
+("fill the gaps", "z-score", "most correlated pair") vs 10% for plain requests. [`bench/WILD.md`](bench/WILD.md), $0.33 total.
+
 ---
 
 ## The problem
@@ -106,8 +116,9 @@ of the code); the Summarizer runs with `enable_thinking: false` for speed.
 | From hypothesis only (top-decile momentum) | Super's draft crashed in the sandbox (shape mismatch) | Sharpe 0.94, CAGR 24%, clean | 2 | ≈ $0.003 |
 
 Full traces, including every model call with tokens and latency: `examples/live_nemotron_*.json`.
-Lesson: on this prompt Nemotron did not leak future data on its own, so the product also audits code you
-paste from a notebook, where look-ahead bugs usually live.
+Lesson: on this prompt Nemotron did not leak future data on its own; over 30 varied prompts it did, in about one
+runnable draft in four (see [In the wild](#in-the-wild-how-often-do-nemotron-written-backtests-leak)), and the
+product also audits code you paste from a notebook.
 
 ## Results on the bundled demo (Mock mode, seed 51)
 
@@ -125,7 +136,7 @@ they can differ from the Coder's rewrite (for momentum, the Quick fix turns `shi
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 315 tests, fully offline
+pytest                                   # 323 tests, fully offline
 USE_MOCK=1 streamlit run app.py          # offline demo, reproducible
 NEBIUS_API_KEY=... streamlit run app.py  # live Nemotron on Token Factory
 python cli.py "Buy top-decile 20-day momentum, rebalance weekly" --out run.trace.json   # headless
@@ -157,6 +168,39 @@ catches by experiment. Full table and every wrong verdict with the model's reaso
 Rerun offline from the cache with `python -m bench.run_bench` (the live run cost $0.22).
 Caveat: benchmark and auditor were written by the same author on synthetic data; treat it as a set of realistic bug patterns.
 
+## In the wild: how often do Nemotron-written backtests leak?
+
+LeakBench measures bugs we planted. To see how often the bugs show up on their own, `bench/run_wild.py` sends 30
+ordinary requests (`bench/wild_prompts.py`, written by us, none asking for a bug) to Nemotron 3 Super and Nemotron 3.5
+Lightning, each under the app's Coder prompt (`app`, which states the next-bar timing contract) and under a minimal
+chat-style prompt (`chat`), one sample each. Every first draft (one retry if it crashes, as in the app) goes through
+the audit, the localizer and Quick fix; the 14 leaky drafts Quick fix could not repair then go through the full loop.
+
+| Condition | Drafts that ran | Leaky | Look-ahead | Repaired (Quick fix + loop) |
+|---|---|---|---|---|
+| Super, app prompt | 28/30 | 3 (11%) | 1 | 2 + 0 |
+| Super, chat prompt | 27/30 | 7 (26%) | 5 | 3 + 3 |
+| Lightning, app prompt | 19/30 | 4 (21%) | 4 | 3 + 1 |
+| Lightning, chat prompt | 21/30 | 11 (52%) | 10 | 3 + 7 |
+| **All** | **95/120** | **25 (26%)** | **20** | **11 + 11 = 22/25** |
+
+- The bugs are the ones LeakBench was built around, written spontaneously: whole-history `mean()/std()` z-scores,
+  default-axis `sum()` and `rank()`, the most correlated pair and the best MA windows chosen on the full sample, a
+  liquid universe from whole-history dollar volume, "drop tickers with missing data", `np.polyfit` over the whole
+  series, `series[i + 1]`, and portfolios that hold tickers before they list.
+- We read all 25 flagged drafts: each has a real bug (no false alarm). For 15 of the 20 look-ahead drafts the
+  localizer named the root-cause line, for 4 a downstream line, for 1 none.
+- Leaks were silent: median Sharpe 0.23 for leaky drafts vs −0.04 for clean ones; only one exceeded 3 (8.06).
+- The app's Coder prompt helps (Super 26% → 11%) but does not remove the problem; requests that mention a notebook
+  habit leak far more often (51% vs 10%).
+- Honest notes: Quick fix repaired 4/25 with the rules at the start of the study; two rule changes made after seeing
+  these drafts (mask weights on unlisted tickers; never `.shift(1)` a ticker-indexed result such as `corr()`, which
+  had produced one bogus "repair") bring it to 11/25, so that number is in-sample. One loop repair (pairs trading) is
+  clean but trades so rarely (1.2% average exposure) that we do not count it.
+- Spend: $0.33 for the whole study (drafts $0.15, repair loop $0.17), every call logged in `bench/wild_spend.jsonl`;
+  all responses are cached in `bench/wild_cache.json`, so `python -m bench.run_wild --offline` reruns it for free.
+  The app shows the cached results in the LeakBench tab (no live calls).
+
 ## Dynamic leak localization: which line reads the future?
 
 When the perturbation test fails, Backtest Auditor re-runs the strategy with every assignment instrumented (inside the
@@ -184,7 +228,9 @@ time reversal, pooled `qcut` → per date, `dropna(axis=1)` → keep every ticke
 statistics (`close.iloc[-1] / close.iloc[-252]`, `volume.iloc[-60:].median()`, `close.count() >= N`,
 `close.columns[close.iloc[-1].notna()]`) → the same statistic as known on each date (shift / rolling / expanding) with
 its `nlargest(n).index`, `.loc[:, ~cols.isin(sel)] = …` and `X[sel]` consumers turned into date-wise masks,
-`np.polyfit(x, y, 1)` over the whole series → expanding least squares, and a last-resort `.shift(1)`.
+`np.polyfit(x, y, 1)` over the whole series → expanding least squares, a last-resort `.shift(1)` (never on a
+ticker-indexed result such as `corr()` or a full-sample `mean()`), and, when the survivorship test finds weight on
+tickers before they list, the returned weights masked with `close.notna()` (both added after the in-the-wild study).
 Each candidate is re-run through the **full** deterministic audit; the first one that passes every blocking test
 without going to cash (`non_trivial` passes, gross exposure ≥ 5%) is accepted and shown as a unified diff with
 Sharpe before/after. The agent loop tries it before calling the Coder and falls back to Nemotron when it fails.
@@ -315,10 +361,11 @@ sandbox/               runner.py (policy + subprocess), _child.py (restricted ex
                        (trusted vectorbt / backtrader stand-ins)
 audit/adapters.py      strategy format detection + generate_signals wrapper
 data/                  synthetic.py (seeded panel), loader.py (CSV)
-bench/                 LeakBench strategies, runner, results, Streamlit view
+bench/                 LeakBench strategies, runners (bench, localize, repair, quickfix, PBO, in-the-wild study),
+                       results, Streamlit views
 audit_cli.py           CI entry point (text/markdown/json/SARIF, GitHub annotations)
 action.yml             composite GitHub Action
-tests/                 pytest suite (315 tests)
+tests/                 pytest suite (323 tests)
 ```
 
 ## Limitations

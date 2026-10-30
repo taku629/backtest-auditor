@@ -122,3 +122,82 @@ def render_leakbench(st, path: str | Path | None = None) -> None:
                    f"{res['n_strategies']} strategies. Deterministic audit: \\$0, about 1 s per strategy.")
     for n in res.get("notes", [])[:2]:
         st.caption("• " + escape_dollars(n))
+
+
+# ----------------------------------------------------------------------------
+# In-the-wild study (bench/run_wild.py): read the slim cached JSON only, never call an LLM
+# ----------------------------------------------------------------------------
+WILD_PUBLIC = Path(__file__).resolve().parent / "wild_public.json"
+_OUTCOME_ICON = {"leaky": "🔴 leaky", "clean": "🟢 clean", "crashed": "⚪ crashed", "never trades": "⚪ never trades"}
+
+
+def load_wild(path: str | Path | None = None) -> dict | None:
+    p = Path(path) if path else WILD_PUBLIC
+    if not p.exists():
+        return None
+    try:
+        d = json.loads(p.read_text())
+    except json.JSONDecodeError:
+        return None
+    return d if d.get("summary") else None
+
+
+def wild_frame(w: dict, only_leaky: bool = True):
+    import pandas as pd
+
+    rows = [r for r in w["rows"] if r["outcome"] == "leaky" or not only_leaky]
+    return pd.DataFrame([{
+        "Draft": r["key"], "Request": r["prompt"], "Outcome": _OUTCOME_ICON.get(r["outcome"], r["outcome"]),
+        "Failing tests": ", ".join(r["blocking"]),
+        "Leak line": (f"L{r['leak_line']}: {(r.get('leak_source') or '').strip()}" if r.get("leak_line") else ""),
+        "Sharpe": r["sharpe"], "Quick fix": r.get("quickfix") or "",
+        "Nemotron loop": r.get("loop") or "",
+        "Sharpe after repair": r.get("sharpe_after") if r.get("quickfix") == "fixed" else r.get("sharpe_after_loop"),
+    } for r in rows])
+
+
+def _cond_name(k: str) -> str:
+    m, s = k.split("/")
+    return f"{'Super' if m == 'super' else 'Lightning'} · {'app prompt' if s == 'app' else 'chat prompt'}"
+
+
+def render_wild(st, path: str | Path | None = None) -> None:
+    w = load_wild(path)
+    st.subheader("In the wild: do Nemotron's own backtests leak?")
+    if w is None:
+        st.info("No in-the-wild results in this build. Run `python -m bench.run_wild`.")
+        return
+    a = w["summary"]["all"]
+    st.caption("30 ordinary strategy requests (momentum, mean reversion, pairs, vol targeting, ML signals, rotation…), "
+               "written by us, none asking for a bug. Nemotron Super and Lightning each wrote a first draft under the "
+               "app's Coder prompt and under a plain chat-style prompt; every draft went through the same deterministic "
+               "audit, localizer and Quick fix as above. Cached results, no live calls. "
+               f"Generated {str(w.get('generated_at', ''))[:10]}.")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Runnable drafts that leak", f"{a['leaky']}/{a['ran']}",
+              f"{a['leaky'] / a['ran']:.0%}" if a["ran"] else None, delta_color="off")
+    c2.metric("Look-ahead drafts, leak line reported", f"{a['look_ahead_localized']}/{a['look_ahead']}")
+    c3.metric("Repaired", f"{a.get('system_repaired', a['quickfix_fixed'])}/{a['leaky']}")
+    c3.caption(f"Quick fix (no LLM, \\$0): {a['quickfix_fixed']} · Nemotron loop: {a.get('loop_repaired', 0)}")
+    c4.metric("Median Sharpe of leaky drafts", f"{a.get('median_sharpe_leaky_all')}")
+    c4.caption(f"clean drafts: {a['median_sharpe_clean']} — leaks did not look too good to be true")
+    conds = {k: v for k, v in w["summary"].items() if "/" in k}
+    if conds:
+        import pandas as pd
+        st.dataframe(pd.DataFrame([{
+            "Condition": _cond_name(k), "Drafts": g["drafted"], "Ran": g["ran"], "Crashed": g["crashed"],
+            "Leaky": f"{g['leaky']}/{g['ran']}", "Look-ahead": g["look_ahead"],
+            "Survivor universe": g["by_class"].get("survivor_universe", 0),
+            "Weight before listing": g["by_class"].get("pre_listing_weight", 0), "Quick fix": f"{g['quickfix_fixed']}/{g['leaky']}",
+            "+ Nemotron loop": f"{g.get('loop_repaired', 0)}/{g.get('loop_tried', 0)}",
+        } for k, g in conds.items()]), width="stretch", hide_index=True)
+    st.dataframe(wild_frame(w), width="stretch", hide_index=True)
+    nb, pl = w["summary"].get("style:notebook") or {}, w["summary"].get("style:plain") or {}
+    style = (f": {nb['leaky']}/{nb['ran']} of those drafts leaked vs {pl['leaky']}/{pl['ran']} of plain ones"
+             if nb.get("ran") and pl.get("ran") else "")
+    st.caption(escape_dollars(
+        f"Caveats: small sample (one draft per prompt and condition), prompts written by us, a third of them mention a "
+        f"notebook habit (fill gaps, drop missing tickers, z-score, pick the best parameters){style}; verdicts are on "
+        f"the bundled synthetic panel; Quick fix rules for two patterns (weights on unlisted tickers, a shift on a "
+        f"ticker-indexed result) were changed after seeing these drafts. "
+        f"Live spend for the study: ${w.get('spend_usd') or 0:.2f}. Details: bench/WILD.md."))
