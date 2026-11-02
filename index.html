@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keep or Return — Skin AI check-ins inside your return window</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#faf7f5;color:#222}
+header{background:#1f1b2e;color:#fff;padding:18px 24px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;opacity:.8}
+main{max-width:980px;margin:0 auto;padding:20px;display:grid;gap:18px;grid-template-columns:1fr 1fr}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.full{grid-column:1/-1}label{display:block;font-size:13px;margin:8px 0 3px;color:#555}
+input,select{width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+button{background:#e2557a;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:15px;cursor:pointer;margin-top:10px}
+button.secondary{background:#4a4560}table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid #eee;text-align:left}
+.verdict{font-size:34px;font-weight:800;margin:6px 0}.keep{color:#1a9c5b}.ret{color:#d23a3a}.test{color:#c98a00}
+.pill{display:inline-block;background:#f1edf7;border-radius:20px;padding:3px 10px;margin:2px;font-size:12px}
+canvas{width:100%;height:220px}.muted{color:#777;font-size:13px}
+@media(max-width:760px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>Keep or Return</h1><p>Is the skincare you just bought actually working? Find out with YouCam Skin AI before the return window closes.</p></header>
+<main>
+<section class="card">
+<h2>1. Register a purchase</h2>
+<label>Product</label><input id="product" value="Niacinamide 10% Blemish Serum">
+<label>Price (USD)</label><input id="price" type="number" value="38">
+<label>Purchase date</label><input id="purchased" type="date">
+<label>Return window (days)</label><input id="window" type="number" value="30">
+<label>Concern the product claims to fix</label>
+<select id="concern">
+<option value="acne">Acne</option><option value="redness">Redness</option><option value="pore">Pores</option>
+<option value="wrinkle">Wrinkles</option><option value="moisture">Moisture</option><option value="age_spot">Spots</option>
+<option value="oiliness">Oiliness</option><option value="texture">Texture</option></select>
+<label>Expected improvement to keep it (score points)</label><input id="target" type="number" value="8">
+<button onclick="savePurchase()">Save purchase</button>
+</section>
+
+<section class="card">
+<h2>2. Skin check-in</h2>
+<p class="muted">Take a front-facing selfie in similar light each time. The photo is sent to the YouCam Skin Analysis API and only the scores are kept.</p>
+<label>Mode</label>
+<select id="mode"><option value="demo">Demo mode (sample scores, no key needed)</option><option value="live">Live — YouCam Skin AI API</option></select>
+<label>YouCam API key (live mode, kept in this browser only)</label><input id="apikey" type="password" placeholder="sk-...">
+<label>Check-in day</label><input id="day" type="number" value="0">
+<label>Selfie</label><input id="photo" type="file" accept="image/*" capture="user">
+<button onclick="checkIn()">Analyze with Skin AI</button>
+<p id="status" class="muted"></p>
+</section>
+
+<section class="card full">
+<h2>3. Verdict</h2>
+<div id="summary" class="muted">Save a purchase and add at least two check-ins.</div>
+<canvas id="chart" width="900" height="220"></canvas>
+<table id="log"><thead><tr><th>Day</th><th>Target concern score</th><th>All scores</th><th>Source</th></tr></thead><tbody></tbody></table>
+<button class="secondary" onclick="loadDemo()">Load 3-week demo story</button>
+<button class="secondary" onclick="resetAll()">Reset</button>
+</section>
+</main>
+
+<script>
+// ---------- state ----------
+const S = JSON.parse(localStorage.getItem('kor') || '{"purchase":null,"checkins":[]}');
+const save = () => localStorage.setItem('kor', JSON.stringify(S));
+document.getElementById('purchased').valueAsDate = new Date(Date.now() - 21*864e5);
+
+function savePurchase(){
+  S.purchase = {
+    product: product.value, price: +price.value, purchased: purchased.value,
+    windowDays: +window.value, concern: concern.value, target: +target.value
+  };
+  S.checkins = S.checkins || []; save(); render();
+}
+
+// ---------- YouCam Skin Analysis API (live mode) ----------
+// Flow: 1) register file upload  2) PUT image to signed URL  3) create skin-analysis task  4) poll task
+const YC = 'https://yce-api-01.perfectcorp.com/s2s/v1.1';
+async function youcamAnalyze(file, key){
+  const H = {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'};
+  const reg = await fetch(YC + '/file/skin-analysis', {method:'POST', headers:H,
+    body: JSON.stringify({files:[{content_type:file.type, file_name:file.name, file_size:file.size}]})}).then(r=>r.json());
+  const f = reg.data.files[0];
+  await fetch(f.requests[0].url, {method:'PUT', headers:f.requests[0].headers, body:file});
+  const actions = ['acne','redness','pore','wrinkle','moisture','age_spot','oiliness','texture'];
+  const task = await fetch(YC + '/task/skin-analysis', {method:'POST', headers:H,
+    body: JSON.stringify({src_file_id: f.file_id, dst_actions: actions, miniserver_args:{enable_mask_overlay:false}})}).then(r=>r.json());
+  const id = task.data.task_id;
+  for(let i=0;i<40;i++){
+    await new Promise(r=>setTimeout(r, 2000));
+    const st = await fetch(YC + '/task/skin-analysis?task_id=' + id, {headers:H}).then(r=>r.json());
+    if(st.data.task_status === 'success'){
+      const out = {};
+      (st.data.results.output || []).forEach(o => out[o.type] = Math.round(o.ui_score ?? o.raw_score));
+      return out;
+    }
+    if(st.data.task_status === 'error') throw new Error('Skin analysis failed');
+  }
+  throw new Error('Timed out');
+}
+
+// ---------- demo scores (deterministic, for judges without a key) ----------
+function demoScores(day){
+  const base = {acne:58,redness:64,pore:61,wrinkle:72,moisture:55,age_spot:69,oiliness:52,texture:63};
+  const out = {}; for(const k in base){ out[k] = Math.min(99, Math.round(base[k] + (k===S.purchase?.concern ? day*0.55 : (day%3)-1))); }
+  return out;
+}
+
+async function checkIn(){
+  if(!S.purchase){ status.textContent = 'Save a purchase first.'; return; }
+  const d = +day.value; status.textContent = 'Analyzing…';
+  try{
+    let scores, src;
+    if(mode.value === 'live'){
+      if(!photo.files[0] || !apikey.value) throw new Error('Live mode needs a selfie and an API key.');
+      scores = await youcamAnalyze(photo.files[0], apikey.value); src = 'YouCam Skin AI';
+    } else { scores = demoScores(d); src = 'Demo'; }
+    S.checkins = S.checkins.filter(c => c.day !== d).concat({day:d, scores, src}).sort((a,b)=>a.day-b.day);
+    save(); status.textContent = 'Saved day ' + d + '.'; day.value = d + 7; render();
+  }catch(e){ status.textContent = 'Error: ' + e.message; }
+}
+
+// ---------- verdict engine ----------
+function verdict(){
+  const p = S.purchase, c = S.checkins;
+  if(!p || c.length < 2) return null;
+  const xs = c.map(x=>x.day), ys = c.map(x=>x.scores[p.concern]);
+  const n = xs.length, mx = xs.reduce((a,b)=>a+b)/n, my = ys.reduce((a,b)=>a+b)/n;
+  const slope = xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0) / (xs.reduce((s,x)=>s+(x-mx)**2,0) || 1);
+  const gain = ys[n-1] - ys[0];
+  const deadline = new Date(new Date(p.purchased).getTime() + p.windowDays*864e5);
+  const daysLeft = Math.ceil((deadline - Date.now())/864e5);
+  const projected = gain + slope * Math.max(0, daysLeft);
+  let v, cls, why;
+  if(gain >= p.target){ v='KEEP'; cls='keep'; why=`${p.concern} improved ${gain} points — above your ${p.target}-point bar.`; }
+  else if(daysLeft <= 7 && projected < p.target){ v='RETURN'; cls='ret'; why=`Only ${gain} points so far and the trend won't reach ${p.target} before the deadline.`; }
+  else if(slope <= 0){ v='RETURN'; cls='ret'; why=`${p.concern} is flat or worse (${slope.toFixed(2)} pts/day).`; }
+  else { v='KEEP TESTING'; cls='test'; why=`Trending up ${slope.toFixed(2)} pts/day; projected ${projected.toFixed(0)} by the deadline.`; }
+  return {v, cls, why, gain, slope, daysLeft, deadline};
+}
+
+function render(){
+  const p = S.purchase, tb = document.querySelector('#log tbody'); tb.innerHTML = '';
+  (S.checkins||[]).forEach(c => {
+    tb.insertAdjacentHTML('beforeend', `<tr><td>${c.day}</td><td><b>${p ? c.scores[p.concern] : ''}</b></td><td>${Object.entries(c.scores).map(([k,v])=>`<span class="pill">${k} ${v}</span>`).join('')}</td><td>${c.src}</td></tr>`);
+  });
+  const r = verdict();
+  summary.innerHTML = r ? `<div class="verdict ${r.cls}">${r.v}</div><div>${p.product} · $${p.price} at stake · ${r.daysLeft} days left (return by ${r.deadline.toDateString()})</div><div class="muted">${r.why}</div>` : 'Save a purchase and add at least two check-ins.';
+  drawChart();
+}
+
+function drawChart(){
+  const cv = chart, g = cv.getContext('2d'); g.clearRect(0,0,cv.width,cv.height);
+  const p = S.purchase, c = S.checkins || []; if(!p || !c.length) return;
+  const W=cv.width, H=cv.height, pad=30, maxD=p.windowDays;
+  g.strokeStyle='#ddd'; g.strokeRect(pad,10,W-2*pad,H-40);
+  const X = d => pad + (W-2*pad)*d/maxD, Y = s => 10 + (H-40)*(1-(s-30)/70);
+  g.fillStyle='#d23a3a33'; g.fillRect(X(maxD-7),10,X(maxD)-X(maxD-7),H-40);
+  g.fillStyle='#777'; g.font='12px sans-serif'; g.fillText('return deadline', X(maxD)-95, 24); g.fillText('day 0', pad, H-12); g.fillText('day '+maxD, W-pad-40, H-12);
+  g.strokeStyle='#e2557a'; g.lineWidth=3; g.beginPath();
+  c.forEach((x,i)=>{ const px=X(x.day), py=Y(x.scores[p.concern]); i?g.lineTo(px,py):g.moveTo(px,py); }); g.stroke();
+  c.forEach(x=>{ g.fillStyle='#e2557a'; g.beginPath(); g.arc(X(x.day),Y(x.scores[p.concern]),5,0,7); g.fill(); });
+}
+
+function loadDemo(){
+  if(!S.purchase) savePurchase();
+  S.checkins = [0,7,14,21].map(d => ({day:d, scores:demoScores(d), src:'Demo'})); save(); render();
+}
+function resetAll(){ localStorage.removeItem('kor'); location.reload(); }
+render();
+</script>
+</body>
+</html>
