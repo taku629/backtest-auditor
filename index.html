@@ -27,7 +27,7 @@ canvas{width:100%;height:220px}.muted{color:#777;font-size:13px}
 <label>Product</label><input id="product" value="Niacinamide 10% Blemish Serum">
 <label>Price (USD)</label><input id="price" type="number" value="38">
 <label>Purchase date</label><input id="purchased" type="date">
-<label>Return window (days)</label><input id="window" type="number" value="30">
+<label>Return window (days)</label><input id="win" type="number" value="30">
 <label>Concern the product claims to fix</label>
 <select id="concern">
 <option value="acne">Acne</option><option value="redness">Redness</option><option value="pore">Pores</option>
@@ -68,7 +68,7 @@ document.getElementById('purchased').valueAsDate = new Date(Date.now() - 21*864e
 function savePurchase(){
   S.purchase = {
     product: product.value, price: +price.value, purchased: purchased.value,
-    windowDays: +window.value, concern: concern.value, target: +target.value
+    windowDays: +win.value, concern: concern.value, target: +target.value
   };
   S.checkins = S.checkins || []; save(); render();
 }
